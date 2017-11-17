@@ -3529,9 +3529,9 @@ void ImGui::SetTooltip(const char* fmt, ...)
     va_end(args);
 }
 
-void ImGui::BeginTooltip()
+void ImGui::BeginTooltip(ImGuiWindowFlags options)
 {
-    BeginTooltipEx(0, false);
+    BeginTooltipEx(options, false);
 }
 
 void ImGui::EndTooltip()
@@ -5099,6 +5099,8 @@ const char* ImGui::GetStyleColorName(ImGuiCol idx)
     {
     case ImGuiCol_Text: return "Text";
     case ImGuiCol_TextDisabled: return "TextDisabled";
+    case ImGuiCol_TextHovered: return "TextHovered";
+    case ImGuiCol_TextActive: return "TextActive";
     case ImGuiCol_WindowBg: return "WindowBg";
     case ImGuiCol_ChildWindowBg: return "ChildWindowBg";
     case ImGuiCol_PopupBg: return "PopupBg";
@@ -5955,7 +5957,9 @@ bool ImGui::ButtonEx(const char* label, const ImVec2& size_arg, ImGuiButtonFlags
     // Render
     const ImU32 col = GetColorU32((hovered && held) ? ImGuiCol_ButtonActive : hovered ? ImGuiCol_ButtonHovered : ImGuiCol_Button);
     RenderFrame(bb.Min, bb.Max, col, true, style.FrameRounding);
+    ImGui::PushStyleColor(ImGuiCol_Text, g.Style.Colors[(hovered && held) ? ImGuiCol_TextActive : hovered ? ImGuiCol_TextHovered : ImGuiCol_Text]);
     RenderTextClipped(bb.Min + style.FramePadding, bb.Max - style.FramePadding, label, NULL, &label_size, style.ButtonTextAlign, &bb);
+    ImGui::PopStyleColor();
 
     // Automatically close popups
     //if (pressed && !(flags & ImGuiButtonFlags_DontClosePopups) && (window->Flags & ImGuiWindowFlags_Popup))
@@ -6338,6 +6342,7 @@ bool ImGui::TreeNodeBehavior(ImGuiID id, ImGuiTreeNodeFlags flags, const char* l
     // Render
     const ImU32 col = GetColorU32((held && hovered) ? ImGuiCol_HeaderActive : hovered ? ImGuiCol_HeaderHovered : ImGuiCol_Header);
     const ImVec2 text_pos = bb.Min + ImVec2(text_offset_x, text_base_offset_y);
+    ImGui::PushStyleColor(ImGuiCol_Text, g.Style.Colors[(held && hovered) ? ImGuiCol_TextActive : hovered ? ImGuiCol_TextHovered : ImGuiCol_Text]);
     if (display_frame)
     {
         // Framed type
@@ -6371,6 +6376,7 @@ bool ImGui::TreeNodeBehavior(ImGuiID id, ImGuiTreeNodeFlags flags, const char* l
             LogRenderedText(&text_pos, ">");
         RenderText(text_pos, label, label_end, false);
     }
+    ImGui::PopStyleColor();
 
     if (is_open && !(flags & ImGuiTreeNodeFlags_NoTreePushOnOpen))
         TreePushRawID(id);
@@ -7291,7 +7297,9 @@ bool ImGui::DragFloat(const char* label, float* v, float v_speed, float v_min, f
     // Display value using user-provided display format so user can add prefix/suffix/decorations to the value.
     char value_buf[64];
     const char* value_buf_end = value_buf + ImFormatString(value_buf, IM_ARRAYSIZE(value_buf), display_format, *v);
+    ImGui::PushStyleColor(ImGuiCol_Text, g.Style.Colors[g.ActiveId == id ? ImGuiCol_TextActive : g.HoveredId == id ? ImGuiCol_TextHovered : ImGuiCol_Text]);
     RenderTextClipped(frame_bb.Min, frame_bb.Max, value_buf, value_buf_end, NULL, ImVec2(0.5f,0.5f));
+    ImGui::PopStyleColor();
 
     if (label_size.x > 0.0f)
         RenderText(ImVec2(frame_bb.Max.x + style.ItemInnerSpacing.x, inner_bb.Min.y), label);
@@ -9013,9 +9021,12 @@ bool ImGui::Selectable(const char* label, bool selected, ImGuiSelectableFlags fl
         bb_with_spacing.Max.x -= (GetContentRegionMax().x - max_x);
     }
 
-    if (flags & ImGuiSelectableFlags_Disabled) PushStyleColor(ImGuiCol_Text, g.Style.Colors[ImGuiCol_TextDisabled]);
+    if (flags & ImGuiSelectableFlags_Disabled)
+    	ImGui::PushStyleColor(ImGuiCol_Text, g.Style.Colors[ImGuiCol_TextDisabled]);
+    else
+    	ImGui::PushStyleColor(ImGuiCol_Text, g.Style.Colors[(held && hovered) ? ImGuiCol_TextActive : hovered ? ImGuiCol_TextHovered : ImGuiCol_Text]);
     RenderTextClipped(bb.Min, bb_with_spacing.Max, label, NULL, &label_size, ImVec2(0.0f,0.0f));
-    if (flags & ImGuiSelectableFlags_Disabled) PopStyleColor();
+    ImGui::PopStyleColor();
 
     // Automatically close popups
     if (pressed && (window->Flags & ImGuiWindowFlags_Popup) && !(flags & ImGuiSelectableFlags_DontClosePopups) && !(window->DC.ItemFlags & ImGuiItemFlags_SelectableDontClosePopup))

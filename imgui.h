@@ -377,7 +377,7 @@ namespace ImGui
     // Tooltips
     IMGUI_API void          SetTooltip(const char* fmt, ...) IM_FMTARGS(1);                     // set text tooltip under mouse-cursor, typically use with ImGui::IsItemHovered(). overidde any previous call to SetTooltip().
     IMGUI_API void          SetTooltipV(const char* fmt, va_list args) IM_FMTLIST(1);
-    IMGUI_API void          BeginTooltip();                                                     // begin/append a tooltip window. to create full-featured tooltip (with any kind of contents).
+    IMGUI_API void          BeginTooltip(ImGuiWindowFlags options=0);                           // begin/append a tooltip window. to create full-featured tooltip (with any kind of contents).
     IMGUI_API void          EndTooltip();
 
     // Menus
@@ -613,6 +613,8 @@ enum ImGuiCol_
 {
     ImGuiCol_Text,
     ImGuiCol_TextDisabled,
+    ImGuiCol_TextHovered,
+    ImGuiCol_TextActive,
     ImGuiCol_WindowBg,              // Background of normal windows
     ImGuiCol_ChildWindowBg,         // Background of child windows
     ImGuiCol_PopupBg,               // Background of popups, menus, tooltips windows
