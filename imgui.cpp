@@ -5190,6 +5190,16 @@ bool ImGui::IsRootWindowOrAnyChildFocused()
     return g.NavWindow && g.NavWindow->RootWindow == g.CurrentWindow->RootWindow;
 }
 
+bool ImGui::IsWindowOrAnyChildFocused()
+{
+    ImGuiContext& g = *GImGui;
+    IM_ASSERT(g.CurrentWindow);     // Not inside a Begin()/End()
+    ImGuiWindow* window = g.NavWindow;
+	while (window && window != g.CurrentWindow)
+		window = window->ParentWindow;
+    return (window!=NULL);
+}
+
 float ImGui::GetWindowWidth()
 {
     ImGuiWindow* window = GImGui->CurrentWindow;
