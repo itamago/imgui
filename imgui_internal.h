@@ -448,7 +448,7 @@ struct ImGuiColumnsSet
     }
 };
 
-struct ImDrawListSharedData
+struct IMGUI_API ImDrawListSharedData
 {
     ImVec2          TexUvWhitePixel;            // UV of white pixel in the atlas
     ImFont*         Font;                       // Current/default font (optional, for simplified AddText overload)
@@ -461,6 +461,15 @@ struct ImDrawListSharedData
     ImVec2          CircleVtx12[12];
 
     ImDrawListSharedData();
+};
+
+struct ImDrawDataBuilder
+{
+    ImVector<ImDrawList*>   Layers[2];           // Global layers for: regular, tooltip
+
+    void Clear()            { for (int n = 0; n < IM_ARRAYSIZE(Layers); n++) Layers[n].resize(0); }
+    void ClearFreeMemory()  { for (int n = 0; n < IM_ARRAYSIZE(Layers); n++) Layers[n].clear(); }
+    IMGUI_API void FlattenIntoSingleLayer();
 };
 
 // Storage for SetNexWindow** functions
@@ -536,7 +545,7 @@ struct ImGuiContext
     ImGuiWindow*            ActiveIdWindow;
     ImGuiID                 LastActiveId;                       // Store the last non-zero ActiveID, useful for animation
     float                   LastActiveIdTimer;
-    ImGuiWindow*            MovingWindow;                       // Track the child window we clicked on to move a window.
+    ImGuiWindow*            MovingWindow;                       // Track the window we clicked on (in order to preserve focus). The actually window that is moved is generally MovingWindow->RootWindow.
     ImGuiID                 MovingWindowMoveId;                 // == MovingWindow->MoveId
     ImVector<ImGuiColMod>   ColorModifiers;                     // Stack for PushStyleColor()/PopStyleColor()
     ImVector<ImGuiStyleMod> StyleModifiers;                     // Stack for PushStyleVar()/PopStyleVar()
@@ -548,8 +557,8 @@ struct ImGuiContext
     ImGuiCond               NextTreeNodeOpenCond;
 
     // Render
-    ImDrawData              RenderDrawData;                     // Main ImDrawData instance to pass render information to the user
-    ImVector<ImDrawList*>   RenderDrawLists[3];
+    ImDrawData              DrawData;                           // Main ImDrawData instance to pass render information to the user
+    ImDrawDataBuilder       DrawDataBuilder;
     float                   ModalWindowDarkeningRatio;
     ImDrawList              OverlayDrawList;                    // Optional software render of mouse cursors, if io.MouseDrawCursor is set + a few debug overlays
     ImGuiMouseCursor        MouseCursor;
