@@ -11,32 +11,31 @@ Monthly donations via Patreon:
 One-off donations via PayPal:
 <br>[![PayPal](https://www.paypalobjects.com/en_US/i/btn/btn_donate_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=5Q73FPZ9C526U)
 
-Dear ImGui is a bloat-free graphical user interface library for C++. It outputs optimized vertex buffers that you can render anytime in your 3D-pipeline enabled application. It is fast, portable, renderer agnostic and self-contained (no external dependencies).
+**Dear ImGui is a bloat-free graphical user interface library for C++. It outputs optimized vertex buffers that you can render anytime in your 3D-pipeline enabled application. It is fast, portable, renderer agnostic and self-contained (no external dependencies).**
 
-Dear ImGui is designed to enable fast iteration and empower programmers to create content creation tools and visualization/ debug tools (as opposed to UI for the average end-user). It favors simplicity and productivity toward this goal, and thus lacks certain features normally found in more high-level libraries.
+**Dear ImGui is designed to enable fast iterations and to empower programmers to create content creation tools and visualization / debug tools (as opposed to UI for the average end-user). It favors simplicity and productivity toward this goal, and lacks certain features normally found in more high-level libraries. Within the scope of what is has to offer, working with Dear ImGui is simpler and faster than working with Qt, WPF, etc. probably by a large order of magnitude.**
 
-Dear ImGui is particularly suited to integration in realtime 3D applications, fullscreen applications, embedded applications, games, or any applications on consoles platforms where operating system features are non-standard. 
+Dear ImGui is particularly suited to integration in games, realtime 3D applications, fullscreen applications, embedded applications, or any applications on consoles platforms where operating system features are non-standard. 
 
 Dear ImGui is self-contained within a few files that you can easily copy and compile into your application/engine:
-
-  - imgui.cpp
-  - imgui.h
-  - imgui_demo.cpp
-  - imgui_draw.cpp
-  - imgui_internal.h
-  - imconfig.h (empty by default, user-editable)
-  - stb_rect_pack.h
-  - stb_textedit.h
-  - stb_truetype.h
+- imgui.cpp
+- imgui.h
+- imgui_demo.cpp
+- imgui_draw.cpp
+- imgui_internal.h
+- imconfig.h (empty by default, user-editable)
+- stb_rect_pack.h
+- stb_textedit.h
+- stb_truetype.h
 
 No specific build process is required. You can add the .cpp files to your project or #include them from an existing file.
 
 ### Usage
 
-Your code passes mouse/keyboard inputs and settings to Dear ImGui (see example applications for more details). After Dear ImGui is setup, you can use it from anywhere in your code:
+Your code passes mouse/keyboard inputs and settings to Dear ImGui (see example applications for more details). After Dear ImGui is setup, you can use it from anywhere in your program loop:
 
+Code:
 ```cpp
-// C++ code
 ImGui::Text("Hello, world %d", 123);
 if (ImGui::Button("Save"))
 {
@@ -45,11 +44,12 @@ if (ImGui::Button("Save"))
 ImGui::InputText("string", buf, IM_ARRAYSIZE(buf));
 ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
 ```
-![sample code output](https://raw.githubusercontent.com/wiki/ocornut/imgui/web/v160/code_sample_02.png)
+Result:
+<br>![sample code output](https://raw.githubusercontent.com/wiki/ocornut/imgui/web/v160/code_sample_02.png)
 <br>_(settings: Dark style (left), Light style (right) / Font: Roboto-Medium, 16px / Rounding: 5)_
 
+Code:
 ```cpp
-// C++ code
 // Create a window called "My First Tool", with a menu bar.
 ImGui::Begin("My First Tool", &my_tool_active, ImGuiWindowFlags_MenuBar);
 if (ImGui::BeginMenuBar())
@@ -79,18 +79,18 @@ for (int n = 0; n < 50; n++)
 ImGui::EndChild();
 ImGui::End();
 ```
-![sample code output](https://raw.githubusercontent.com/wiki/ocornut/imgui/web/v160/code_sample_03_color.gif)
-<br>_(Gif compression added dithering to the color wheel)_
+Result:
+<br>![sample code output](https://raw.githubusercontent.com/wiki/ocornut/imgui/web/v160/code_sample_03_color.gif)
 
 ### How it works
 
-Check out the References section if you want to understand the core principles behind the immediate-mode gui paradigm.
+Check out the References section if you want to understand the core principles behind the IMGUI paradigm. An IMGUI tries to minimize state synchronization and storage from the user's point of view. It is less error prone (less code and less bugs) than traditional retained-mode interfaces, and lends itself to create dynamic user interfaces.
 
-Dear ImGui outputs vertex buffers and simple command-lists that you can trivially render in your application. The number of draw calls and state changes is typically very small. Because it doesn't know or touch graphics state directly, you can call ImGui commands anywhere in your code (e.g. in the middle of a running algorithm, or in the middle of your own rendering process). Refer to the sample applications in the examples/ folder for instructions on how to integrate dear imgui with your existing codebase. 
+Dear ImGui outputs vertex buffers and command lists that you can easily render in your application. The number of draw calls and state changes is typically very small. Because it doesn't know or touch graphics state directly, you can call ImGui commands anywhere in your code (e.g. in the middle of a running algorithm, or in the middle of your own rendering process). Refer to the sample applications in the examples/ folder for instructions on how to integrate dear imgui with your existing codebase. 
 
 _A common misunderstanding is to mistake immediate mode gui for immediate mode rendering, which usually implies hammering your driver/GPU with a bunch of inefficient draw calls and state changes as the gui functions are called. This is NOT what Dear ImGui does. Dear ImGui outputs vertex buffers and a small list of draw calls batches. It never touches your GPU directly. The draw call batches are decently optimal and you can render them later, in your app or even remotely._
 
-Dear ImGui allows you create elaborate tools as well as very short-lived ones. On the extreme side of short-liveness: using the Edit&Continue feature of modern compilers you can add a few widgets to tweaks variables while your application is running, and remove the code a minute later! Dear ImGui is not just for tweaking values. You can use it to trace a running algorithm by just emitting text commands. You can use it along with your own reflection data to browse your dataset live. You can use it to expose the internals of a subsystem in your engine, to create a logger, an inspection tool, a profiler, a debugger, an entire game making editor/framework, etc.  
+Dear ImGui allows you create elaborate tools as well as very short-lived ones. On the extreme side of short-liveness: using the Edit&Continue (hot code reload) feature of modern compilers you can add a few widgets to tweaks variables while your application is running, and remove the code a minute later! Dear ImGui is not just for tweaking values. You can use it to trace a running algorithm by just emitting text commands. You can use it along with your own reflection data to browse your dataset live. You can use it to expose the internals of a subsystem in your engine, to create a logger, an inspection tool, a profiler, a debugger, an entire game making editor/framework, etc.  
 
 Demo Binaries
 -------------
@@ -105,46 +105,46 @@ Bindings
 
 Integrating Dear ImGui within your custom engine is a matter of wiring mouse/keyboard inputs and providing a render function that can bind a texture and render simple textured triangles. The examples/ folder is populated with applications doing just that. If you are an experienced programmer it should take you less than an hour to integrate Dear ImGui in your custom engine, but make sure to spend time reading the FAQ, the comments and other documentation!
 
-_NB: those third-party bindings may be more or less maintained, more or less close to the spirit of original API and therefore I cannot give much guarantee about them. People who create language bindings sometimes haven't used the C++ API themselves (for the good reason that they aren't C++ users). Dear ImGui was designed with C++ in mind and some of the subtleties may be lost in translation with other languages. If your language supports it, I would suggest replicating the function overloading and default parameters used in the original, else the API may be harder to use. In doubt, please check the original C++ version first!_
+_NB: those third-party bindings may be more or less maintained, more or less close to the original API (as people who create language bindings sometimes haven't used the C++ API themselves.. for the good reason that they aren't C++ users). Dear ImGui was designed with C++ in mind and some of the subtleties may be lost in translation with other languages. If your language supports it, I would suggest replicating the function overloading and default parameters used in the original, else the API may be harder to use. In doubt, please check the original C++ version first!_
 
-Languages:
-- C (cimgui): https://github.com/Extrawurst/cimgui
-- C#/.Net (ImGui.NET): https://github.com/mellinoe/ImGui.NET
-- ChaiScript: https://github.com/JuJuBoSc/imgui-chaiscript
-- D (DerelictImgui): https://github.com/Extrawurst/DerelictImgui
-- Go (go-imgui): https://github.com/Armored-Dragon/go-imgui
-- Haxe/hxcpp (linc_imgui): https://github.com/Aidan63/linc_imgui
-- JavaScript (imgui-js): https://github.com/flyover/imgui-js
-- Lua: https://github.com/patrickriordan/imgui_lua_bindings
-- Odin: https://github.com/ThisDrunkDane/odin-dear_imgui
-- Pascal (imgui-pas): https://github.com/dpethes/imgui-pas
-- Python (CyImGui): https://github.com/chromy/cyimgui
-- Python (pyimgui): https://github.com/swistakm/pyimgui
-- Rust (imgui-rs): https://github.com/Gekkio/imgui-rs
+Languages: (third-party bindinds)
+- C: [cimgui](https://github.com/Extrawurst/cimgui)
+- C#/.Net: [ImGui.NET](https://github.com/mellinoe/ImGui.NET)
+- ChaiScript: [imgui-chaiscript](https://github.com/JuJuBoSc/imgui-chaiscript)
+- D: [DerelictImgui](https://github.com/Extrawurst/DerelictImgui)
+- Go: [go-imgui](https://github.com/Armored-Dragon/go-imgui)
+- Haxe/hxcpp: [linc_imgui](https://github.com/Aidan63/linc_imgui)
+- JavaScript: [imgui-js](https://github.com/flyover/imgui-js)
+- Lua: [imgui_lua_bindings](https://github.com/patrickriordan/imgui_lua_bindings)
+- Odin: [odin-dear_imgui](https://github.com/ThisDrunkDane/odin-dear_imgui)
+- Pascal: [imgui-pas](https://github.com/dpethes/imgui-pas)
+- Python [CyImGui](https://github.com/chromy/cyimgui)
+- Python [pyimgui](https://github.com/swistakm/pyimgui)
+- Rust: [imgui-rs](https://github.com/Gekkio/imgui-rs)
 
 Frameworks:
-- DirectX 9, DirectX 10, DirectX 11: [github/ocornut/imgui/tree/master/examples](https://github.com/ocornut/imgui/tree/master/examples) (this repository)
-- OpenGL 2/3 (with GLFW or SDL): [github/ocornut/imgui/tree/master/examples](https://github.com/ocornut/imgui/tree/master/examples) (this repository)
-- Vulkan (with GLFW): [github/ocornut/imgui/tree/master/examples](https://github.com/ocornut/imgui/tree/master/examples) (this repository)
-- Allegro 5, iOS, Marmalade: [github/ocornut/imgui/tree/master/examples](https://github.com/ocornut/imgui/tree/master/examples) (this repository)
-- Unmerged PR: DirectX12: [github/ocornut/imgui/pull/301](https://github.com/ocornut/imgui/pull/301)
-- Unmerged PR: SDL2 + OpenGLES + Emscripten: [github/ocornut/imgui/pull/336](https://github.com/ocornut/imgui/pull/336)
-- Unmerged PR: FreeGlut + OpenGL2: [github/ocornut/imgui/pull/801](https://github.com/ocornut/imgui/pull/801)
-- Unmerged PR: Native Win32 and OSX: [github/ocornut/imgui/pull/281](https://github.com/ocornut/imgui/pull/281)
-- Unmerged PR: Android: [github/ocornut/imgui/pull/421](https://github.com/ocornut/imgui/pull/421)
-- Cinder: [github/simongeilfus/Cinder-ImGui](https://github.com/simongeilfus/Cinder-ImGui)
-- Cocos2d-x: [github/c0i/imguix](https://github.com/c0i/imguix), [github/ocornut/imgui/issues/551](https://github.com/ocornut/imgui/issues/551)
-- Flexium/SFML (FlexGUI): [github/DXsmiley/FlexGUI](https://github.com/DXsmiley/FlexGUI)
-- GML/GameMakerStudio2 (ImGuiGML): [marketplace.yoyogames.com/assets/6221/imguigml](https://marketplace.yoyogames.com/assets/6221/imguigml)
-- Irrlicht (IrrIMGUI): [github/ZahlGraf/IrrIMGUI](https://github.com/ZahlGraf/IrrIMGUI)
-- Ogre: [bitbucket.org/LMCrashy/ogreimgui/src](https://bitbucket.org/LMCrashy/ogreimgui/src)
-- OpenFrameworks (ofxImGui): [github/jvcleave/ofxImGui](https://github.com/jvcleave/ofxImGui)
+- DirectX 9, DirectX 10, DirectX 11: [examples/](https://github.com/ocornut/imgui/tree/master/examples)
+- OpenGL 2/3 (with GLFW or SDL): [examples/](https://github.com/ocornut/imgui/tree/master/examples)
+- Vulkan (with GLFW): [examples/](https://github.com/ocornut/imgui/tree/master/examples)
+- Allegro 5, iOS, Marmalade: [examples/](https://github.com/ocornut/imgui/tree/master/examples)
+- Unmerged PR: DirectX12: [#301](https://github.com/ocornut/imgui/pull/301)
+- Unmerged PR: SDL2 + OpenGLES + Emscripten: [#336](https://github.com/ocornut/imgui/pull/336)
+- Unmerged PR: FreeGlut + OpenGL2: [#801](https://github.com/ocornut/imgui/pull/801)
+- Unmerged PR: Native Win32 and OSX: [#281](https://github.com/ocornut/imgui/pull/281)
+- Unmerged PR: Android: [#421](https://github.com/ocornut/imgui/pull/421)
+- Cinder: [Cinder-ImGui](https://github.com/simongeilfus/Cinder-ImGui)
+- Cocos2d-x: [imguix](https://github.com/c0i/imguix), [issue #551](https://github.com/ocornut/imgui/issues/551)
+- Flexium/SFML: [FlexGUI](https://github.com/DXsmiley/FlexGUI)
+- GML/GameMakerStudio2: [ImGuiGML](https://marketplace.yoyogames.com/assets/6221/imguigml)
+- Irrlicht: [IrrIMGUI](https://github.com/ZahlGraf/IrrIMGUI)
+- Ogre: [ogreimgui](https://bitbucket.org/LMCrashy/ogreimgui/src)
+- OpenFrameworks: [ofxImGui](https://github.com/jvcleave/ofxImGui)
 - OpenSceneGraph/OSG: [gist](https://gist.github.com/fulezi/d2442ca7626bf270226014501357042c)
-- LÖVE: [github/slages/love-imgui](https://github.com/slages/love-imgui)
-- NanoRT: [github/syoyo/imgui](https://github.com/syoyo/imgui/tree/nanort)
-- Qt3d: [github/alpqr/imgui-qt3d](https://github.com/alpqr/imgui-qt3d)
-- Unreal Engine 4: [github/segross/UnrealImGui](https://github.com/segross/UnrealImGui) or [github/sronsse/UnrealEngine_ImGui](https://github.com/sronsse/UnrealEngine_ImGui)
-- SFML: [github.com/EliasD/imgui-sfml](https://github.com/EliasD/imgui-sfml) or [Mischa-Alff/imgui-backends](https://github.com/Mischa-Alff/imgui-backends)
+- LÖVE: [love-imgui](https://github.com/slages/love-imgui)
+- NanoRT: [syoyo/imgui](https://github.com/syoyo/imgui/tree/nanort)
+- Qt3d: [imgui-qt3d](https://github.com/alpqr/imgui-qt3d)
+- Unreal Engine 4: [segross/UnrealImGui](https://github.com/segross/UnrealImGui) or [sronsse/UnrealEngine_ImGui](https://github.com/sronsse/UnrealEngine_ImGui)
+- SFML: [imgui-sfml](https://github.com/EliasD/imgui-sfml) or [imgui-backends](https://github.com/Mischa-Alff/imgui-backends)
 
 For other bindings: see [this page](https://github.com/ocornut/imgui/wiki/Links/).
 Please contact me with the Issues tracker or Twitter to fix/update this list.
@@ -157,7 +157,6 @@ Some of the goals for 2018 are:
 - Finish work on docking, tabs. (see [#351](https://github.com/ocornut/imgui/issues/351#issuecomment-346865709))
 - Make Columns better (they are currently pretty terrible!).
 - Make the examples look better, improve styles, improve font support, make the examples hi-DPI aware.
-
 
 Gallery
 -------
@@ -180,12 +179,12 @@ Various tools
 [![screenshot profiler](https://raw.githubusercontent.com/wiki/ocornut/imgui/web/v148/profiler-880.jpg)](https://raw.githubusercontent.com/wiki/ocornut/imgui/web/v148/profiler.png)
 
 Dear ImGui can load TTF/OTF fonts. UTF-8 is supported for text display and input. Here using Arial Unicode font to display Japanese. Initialize custom font with:
+Code:
 ```cpp
 ImGuiIO& io = ImGui::GetIO();
 io.Fonts->AddFontFromFileTTF("NotoSansCJKjp-Medium.otf", 20.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
 ```
 ```cpp
-// C++ code
 ImGui::Text(u8"こんにちは！テスト %d", 123);
 if (ImGui::Button(u8"ロード"))
 {
@@ -194,7 +193,8 @@ if (ImGui::Button(u8"ロード"))
 ImGui::InputText("string", buf, IM_ARRAYSIZE(buf));
 ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
 ```
-![sample code output](https://raw.githubusercontent.com/wiki/ocornut/imgui/web/v160/code_sample_02_jp.png)
+Result:
+<br>![sample code output](https://raw.githubusercontent.com/wiki/ocornut/imgui/web/v160/code_sample_02_jp.png)
 <br>_(settings: Dark style (left), Light style (right) / Font: NotoSansCJKjp-Medium, 20px / Rounding: 5)_
 
 References
