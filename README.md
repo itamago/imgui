@@ -107,7 +107,7 @@ Integrating Dear ImGui within your custom engine is a matter of 1) wiring mouse/
 
 _NB: those third-party bindings may be more or less maintained, more or less close to the original API (as people who create language bindings sometimes haven't used the C++ API themselves.. for the good reason that they aren't C++ users). Dear ImGui was designed with C++ in mind and some of the subtleties may be lost in translation with other languages. If your language supports it, I would suggest replicating the function overloading and default parameters used in the original, else the API may be harder to use. In doubt, please check the original C++ version first!_
 
-Languages: (third-party bindinds)
+Languages: (third-party bindings)
 - C: [cimgui](https://github.com/Extrawurst/cimgui)
 - C#/.Net: [ImGui.NET](https://github.com/mellinoe/ImGui.NET)
 - ChaiScript: [imgui-chaiscript](https://github.com/JuJuBoSc/imgui-chaiscript)
@@ -123,11 +123,10 @@ Languages: (third-party bindinds)
 - Rust: [imgui-rs](https://github.com/Gekkio/imgui-rs)
 
 Frameworks:
-- DirectX 9, DirectX 10, DirectX 11: [examples/](https://github.com/ocornut/imgui/tree/master/examples)
+- DirectX 9, DirectX 10, DirectX 11, DirectX 12: [examples/](https://github.com/ocornut/imgui/tree/master/examples)
 - OpenGL 2/3 (with GLFW or SDL): [examples/](https://github.com/ocornut/imgui/tree/master/examples)
 - Vulkan (with GLFW): [examples/](https://github.com/ocornut/imgui/tree/master/examples)
 - Allegro 5, iOS, Marmalade: [examples/](https://github.com/ocornut/imgui/tree/master/examples)
-- Unmerged PR: DirectX12: [#301](https://github.com/ocornut/imgui/pull/301)
 - Unmerged PR: SDL2 + OpenGLES + Emscripten: [#336](https://github.com/ocornut/imgui/pull/336)
 - Unmerged PR: FreeGlut + OpenGL2: [#801](https://github.com/ocornut/imgui/pull/801)
 - Unmerged PR: Native Win32 and OSX: [#281](https://github.com/ocornut/imgui/pull/281)
