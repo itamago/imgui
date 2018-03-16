@@ -61,3 +61,14 @@ namespace ImGui
     void MyFunction(const char* name, const MyMatrix44& v);
 }
 */
+
+
+// We need a structure of 24 bytes length in order to match 'VertexImGui' size.
+#define IMGUI_OVERRIDE_DRAWVERT_STRUCT_LAYOUT  \
+	struct ImDrawVert		\
+	{						\
+		ImVec2  pos;		\
+		ImVec2  uv;			\
+		ImU32   col;		\
+		ImU32   _padding_;	\
+	};
