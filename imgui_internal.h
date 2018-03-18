@@ -40,6 +40,7 @@ struct ImGuiMenuColumns;
 struct ImGuiDrawContext;
 struct ImGuiTextEditState;
 struct ImGuiPopupRef;
+struct ImGuiViewport;
 struct ImGuiWindow;
 struct ImGuiWindowSettings;
 
@@ -51,6 +52,7 @@ typedef int ImGuiNavHighlightFlags; // flags: for RenderNavHighlight()          
 typedef int ImGuiNavDirSourceFlags; // flags: for GetNavInputAmount2d()         // enum ImGuiNavDirSourceFlags_
 typedef int ImGuiSeparatorFlags;    // flags: for Separator() - internal        // enum ImGuiSeparatorFlags_
 typedef int ImGuiSliderFlags;       // flags: for SliderBehavior()              // enum ImGuiSliderFlags_
+typedef int ImGuiViewportFlags;     // flags: for Viewport()                    // enum ImGuiViewportFlags_ 
 
 //-------------------------------------------------------------------------
 // STB libraries
@@ -164,15 +166,6 @@ static inline float  ImDot(const ImVec2& a, const ImVec2& b)                    
 static inline ImVec2 ImRotate(const ImVec2& v, float cos_a, float sin_a)        { return ImVec2(v.x * cos_a - v.y * sin_a, v.x * sin_a + v.y * cos_a); }
 static inline float  ImLinearSweep(float current, float target, float speed)    { if (current < target) return ImMin(current + speed, target); if (current > target) return ImMax(current - speed, target); return current; }
 static inline ImVec2 ImMul(const ImVec2& lhs, const ImVec2& rhs)                { return ImVec2(lhs.x * rhs.x, lhs.y * rhs.y); }
-
-// We call C++ constructor on own allocated memory via the placement "new(ptr) Type()" syntax.
-// Defining a custom placement new() with a dummy parameter allows us to bypass including <new> which on some platforms complains when user has disabled exceptions.
-struct ImNewPlacementDummy {};
-inline void* operator   new(size_t, ImNewPlacementDummy, void* ptr) { return ptr; }
-inline void  operator   delete(void*, ImNewPlacementDummy, void*)   {} // This is only required so we can use the symetrical new()
-#define IM_PLACEMENT_NEW(_PTR)              new(ImNewPlacementDummy(), _PTR)
-#define IM_NEW(_TYPE)                       new(ImNewPlacementDummy(), ImGui::MemAlloc(sizeof(_TYPE))) _TYPE
-template <typename T> void IM_DELETE(T*& p) { if (p) { p->~T(); ImGui::MemFree(p); p = NULL; } }
 
 //-----------------------------------------------------------------------------
 // Types
@@ -330,7 +323,8 @@ struct IMGUI_API ImRect
     void        Add(const ImRect& r)                { if (Min.x > r.Min.x) Min.x = r.Min.x; if (Min.y > r.Min.y) Min.y = r.Min.y; if (Max.x < r.Max.x) Max.x = r.Max.x; if (Max.y < r.Max.y) Max.y = r.Max.y; }
     void        Expand(const float amount)          { Min.x -= amount;   Min.y -= amount;   Max.x += amount;   Max.y += amount; }
     void        Expand(const ImVec2& amount)        { Min.x -= amount.x; Min.y -= amount.y; Max.x += amount.x; Max.y += amount.y; }
-    void        Translate(const ImVec2& v)          { Min.x += v.x; Min.y += v.y; Max.x += v.x; Max.y += v.y; }
+    void        Translate(const ImVec2& d)          { Min.x += d.x; Min.y += d.y; Max.x += d.x; Max.y += d.y; }
+    void        Translate(float dx, float dy)       { Min.x += dx; Min.y += dy; Max.x += dx; Max.y += dy; }
     void        ClipWith(const ImRect& r)           { Min = ImMax(Min, r.Min); Max = ImMin(Max, r.Max); }                   // Simple version, may lead to an inverted rectangle, which is fine for Contains/Overlaps test but not for display.
     void        ClipWithFull(const ImRect& r)       { Min = ImClamp(Min, r.Min, r.Max); Max = ImClamp(Max, r.Min, r.Max); } // Full version, ensure both points are fully clipped.
     void        Floor()                             { Min.x = (float)(int)Min.x; Min.y = (float)(int)Min.y; Max.x = (float)(int)Max.x; Max.y = (float)(int)Max.y; }
@@ -414,18 +408,21 @@ struct ImGuiWindowSettings
     ImGuiID     Id;
     ImVec2      Pos;
     ImVec2      Size;
+    ImVec2      ViewportPlatformPos;
+    ImGuiID     ViewportId;
     bool        Collapsed;
 
-    ImGuiWindowSettings() { Name = NULL; Id = 0; Pos = Size = ImVec2(0,0); Collapsed = false; }
+    ImGuiWindowSettings() { Name = NULL; Id = ViewportId = 0; Pos = Size = ImVec2(0,0); ViewportPlatformPos = ImVec2(FLT_MAX, FLT_MAX); Collapsed = false; }
 };
 
 struct ImGuiSettingsHandler
 {
     const char* TypeName;   // Short description stored in .ini file. Disallowed characters: '[' ']'  
     ImGuiID     TypeHash;   // == ImHash(TypeName, 0, 0)
-    void*       (*ReadOpenFn)(ImGuiContext* ctx, ImGuiSettingsHandler* handler, const char* name);
-    void        (*ReadLineFn)(ImGuiContext* ctx, ImGuiSettingsHandler* handler, void* entry, const char* line);
-    void        (*WriteAllFn)(ImGuiContext* ctx, ImGuiSettingsHandler* handler, ImGuiTextBuffer* out_buf);
+    void*       (*ReadOpenFn)(ImGuiContext* ctx, ImGuiSettingsHandler* handler, const char* name);              // Read: Called when entering into a new ini entry e.g. "[Window][Name]"
+    void        (*ReadCloseFn)(ImGuiContext* ctx, ImGuiSettingsHandler* handler, void* entry);                  // Read: Called when closing an existing entry, so code can validate overall data. [Optional]
+    void        (*ReadLineFn)(ImGuiContext* ctx, ImGuiSettingsHandler* handler, void* entry, const char* line); // Read: Called for every line of text within an ini entry
+    void        (*WriteAllFn)(ImGuiContext* ctx, ImGuiSettingsHandler* handler, ImGuiTextBuffer* out_buf);      // Write: Output every entries into 'out_buf'
     void*       UserData;
 
     ImGuiSettingsHandler() { memset(this, 0, sizeof(*this)); }
@@ -505,7 +502,49 @@ struct ImDrawDataBuilder
 
     void Clear()            { for (int n = 0; n < IM_ARRAYSIZE(Layers); n++) Layers[n].resize(0); }
     void ClearFreeMemory()  { for (int n = 0; n < IM_ARRAYSIZE(Layers); n++) Layers[n].clear(); }
+    int  GetDrawListCount() const { int count = 0; for (int n = 0; n < IM_ARRAYSIZE(Layers); n++) count += Layers[n].Size; return count; }
     IMGUI_API void FlattenIntoSingleLayer();
+};
+
+enum ImGuiViewportFlags_
+{
+    ImGuiViewportFlags_MainViewport         = 1 << 0,
+    ImGuiViewportFlags_HostOtherWindows     = 1 << 1,
+    ImGuiViewportFlags_NoRendererClear      = 1 << 2,   // Platform Window: Renderer doesn't need to clear the framebuffer ahead.
+    ImGuiViewportFlags_NoDecoration         = 1 << 3,   // Platform Window: Disable platform title bar, borders, etc.
+    ImGuiViewportFlags_NoFocusOnAppearing   = 1 << 4,   // Platform Window: Don't take focus when created.
+    ImGuiViewportFlags_NoInputs             = 1 << 5    // Platform Window: Make mouse pass through so we can drag this window while peaking behind it.
+};
+
+struct ImGuiViewport
+{
+    ImGuiID             ID;
+    int                 Idx;
+    ImGuiViewportFlags  Flags;
+    int                 LastFrameActive;        
+    int                 LastFrameAsRefViewport; // Last frame number this viewport was io.MouseViewportRef
+    ImGuiID             LastNameHash;
+    ImGuiWindow*        Window;
+    ImVec2              Pos;                    // Position in imgui virtual space (Pos.y == 0.0)
+    ImVec2              Size;
+    float               DpiScale;
+    ImDrawData          DrawData;
+    ImDrawDataBuilder   DrawDataBuilder;
+
+    // [Optional] OS/Platform Layer data. This is to allow the creation/manipulate of multiple OS/Platform windows. Not all back-ends will allow this.
+    ImVec2              PlatformPos;   // Position in OS desktop/native space
+    void*               PlatformUserData;       // void* to hold custom data structure for the platform (e.g. windowing info, render context)
+    void*               PlatformHandle;         // void* for FindViewportByPlatformHandle(). (e.g. HWND, GlfwWindow*)
+    bool                PlatformRequestClose;   // Platform window requested closure
+    bool                PlatformRequestMove;    // Platform window requested move (e.g. window was moved using OS windowing facility)
+    bool                PlatformRequestResize;  // Platform window requested resize (e.g. window was resize using OS windowing facility)
+    void*               RendererUserData;       // void* to hold custom data structure for the renderer (e.g. framebuffer)
+    ImVec2              RendererLastSize;
+
+    ImGuiViewport(ImGuiID id, int idx)  { ID = id; Idx = idx; Flags = 0; LastFrameActive = LastFrameAsRefViewport = -1; LastNameHash = 0; Window = NULL; DpiScale = 0.0f; PlatformUserData = PlatformHandle = NULL; PlatformRequestClose = PlatformRequestMove = PlatformRequestResize = false; RendererUserData = NULL; RendererLastSize = ImVec2(-1.0f,-1.0f); }
+    ~ImGuiViewport()                    { IM_ASSERT(PlatformUserData == NULL && RendererUserData == NULL); }
+    ImRect  GetRect() const             { return ImRect(Pos.x, Pos.y, Pos.x + Size.x, Pos.y + Size.y); }
+    float   GetNextX() const            { const float SPACING = 4.0f; return Pos.x + Size.x + SPACING; }
 };
 
 struct ImGuiNavMoveResult
@@ -532,19 +571,21 @@ struct ImGuiNextWindowData
     ImGuiCond               SizeConstraintCond;
     ImGuiCond               FocusCond;
     ImGuiCond               BgAlphaCond;
+    ImGuiCond               ViewportCond;
     ImVec2                  PosVal;
     ImVec2                  PosPivotVal;
     ImVec2                  SizeVal;
     ImVec2                  ContentSizeVal;
     bool                    CollapsedVal;
-    ImRect                  SizeConstraintRect;                 // Valid if 'SetNextWindowSizeConstraint' is true
+    ImRect                  SizeConstraintRect;
     ImGuiSizeCallback       SizeCallback;
     void*                   SizeCallbackUserData;
     float                   BgAlphaVal;
+    ImGuiID                 ViewportId;
 
     ImGuiNextWindowData()
     {
-        PosCond = SizeCond = ContentSizeCond = CollapsedCond = SizeConstraintCond = FocusCond = BgAlphaCond = 0;
+        PosCond = SizeCond = ContentSizeCond = CollapsedCond = SizeConstraintCond = FocusCond = BgAlphaCond = ViewportCond = 0;
         PosVal = PosPivotVal = SizeVal = ImVec2(0.0f, 0.0f);
         ContentSizeVal = ImVec2(0.0f, 0.0f);
         CollapsedVal = false;
@@ -552,11 +593,12 @@ struct ImGuiNextWindowData
         SizeCallback = NULL;
         SizeCallbackUserData = NULL;
         BgAlphaVal = FLT_MAX;
+        ViewportId = 0;
     }
 
     void    Clear()
     {
-        PosCond = SizeCond = ContentSizeCond = CollapsedCond = SizeConstraintCond = FocusCond = BgAlphaCond = 0;
+        PosCond = SizeCond = ContentSizeCond = CollapsedCond = SizeConstraintCond = FocusCond = BgAlphaCond = ViewportCond = 0;
     }
 };
 
@@ -610,6 +652,13 @@ struct ImGuiContext
     bool                    NextTreeNodeOpenVal;                // Storage for SetNextTreeNode** functions
     ImGuiCond               NextTreeNodeOpenCond;
 
+    // Viewports
+    ImVector<ImGuiViewport*>Viewports;
+    ImGuiViewport*          CurrentViewport;
+    ImGuiViewport*          MouseViewport;
+    ImGuiViewport*          MouseLastViewport;
+    ImGuiViewport*          MouseLastHoveredViewport;
+
     // Navigation data (for gamepad/keyboard)
     ImGuiWindow*            NavWindow;                          // Focused window for navigation. Could be called 'FocusWindow'
     ImGuiID                 NavId;                              // Focused item for navigation
@@ -646,8 +695,6 @@ struct ImGuiContext
     ImGuiNavMoveResult      NavMoveResultOther;                 // Best move request candidate within NavWindow's flattened hierarchy (when using the NavFlattened flag)
 
     // Render
-    ImDrawData              DrawData;                           // Main ImDrawData instance to pass render information to the user
-    ImDrawDataBuilder       DrawDataBuilder;
     float                   ModalWindowDarkeningRatio;
     ImDrawList              OverlayDrawList;                    // Optional software render of mouse cursors, if io.MouseDrawCursor is set + a few debug overlays
     ImGuiMouseCursor        MouseCursor;
@@ -738,6 +785,10 @@ struct ImGuiContext
         MovingWindow = NULL;
         NextTreeNodeOpenVal = false;
         NextTreeNodeOpenCond = 0;
+
+        CurrentViewport = NULL;
+        MouseViewport = NULL;
+        MouseLastViewport = MouseLastHoveredViewport = NULL;
 
         NavWindow = NULL;
         NavId = NavActivateId = NavActivateDownId = NavActivatePressedId = NavInputId = 0;
@@ -902,7 +953,10 @@ struct IMGUI_API ImGuiWindow
 {
     char*                   Name;
     ImGuiID                 ID;                                 // == ImHash(Name)
-    ImGuiWindowFlags        Flags;                              // See enum ImGuiWindowFlags_
+    ImGuiWindowFlags        Flags, FlagsPreviousFrame;          // See enum ImGuiWindowFlags_
+    ImGuiViewport*          Viewport;                           // Always set in Begin(), only inactive windows may have a NULL value here
+    ImGuiID                 ViewportId;                         // Inactive windows preserve their last viewport id (since the viewport may disappear with the window inactivity)
+    ImVec2                  ViewportPlatformPos;
     ImVec2                  PosFloat;
     ImVec2                  Pos;                                // Position rounded-up to nearest pixel
     ImVec2                  Size;                               // Current size (==SizeFull or collapsed title bar size)
@@ -938,9 +992,10 @@ struct IMGUI_API ImGuiWindow
     int                     AutoFitChildAxises;
     ImGuiDir                AutoPosLastDirection;
     int                     HiddenFrames;
-    ImGuiCond               SetWindowPosAllowFlags;             // store condition flags for next SetWindowPos() call.
-    ImGuiCond               SetWindowSizeAllowFlags;            // store condition flags for next SetWindowSize() call.
-    ImGuiCond               SetWindowCollapsedAllowFlags;       // store condition flags for next SetWindowCollapsed() call.
+    ImGuiCond               SetWindowPosAllowFlags;             // store accepted condition flags for SetNextWindowPos() use.
+    ImGuiCond               SetWindowSizeAllowFlags;            // store accepted condition flags for SetNextWindowSize() use.
+    ImGuiCond               SetWindowCollapsedAllowFlags;       // store accepted condition flags for SetNextWindowCollapsed() use.
+
     ImVec2                  SetWindowPosVal;                    // store window position when using a non-zero Pivot (position set needs to be processed when we know the window size)
     ImVec2                  SetWindowPosPivot;                  // store window pivot for positioning. ImVec2(0,0) when positioning from top-left corner; ImVec2(0.5f,0.5f) for centering; ImVec2(1,1) for bottom right.
 
@@ -954,7 +1009,8 @@ struct IMGUI_API ImGuiWindow
     ImGuiMenuColumns        MenuColumns;                        // Simplified columns storage for menu items
     ImGuiStorage            StateStorage;
     ImVector<ImGuiColumnsSet> ColumnsStorage;
-    float                   FontWindowScale;                    // Scale multiplier per-window
+    float                   FontWindowScale;                    // User scale multiplier per-window
+    float                   FontDpiScale;
     ImDrawList*             DrawList;
     ImGuiWindow*            ParentWindow;                       // If we are a child _or_ popup window, this is pointing to our parent. Otherwise NULL.
     ImGuiWindow*            RootWindow;                         // Point to ourself or first ancestor that is not a child window.
@@ -986,7 +1042,7 @@ public:
 
     // We don't use g.FontSize because the window may be != g.CurrentWidow.
     ImRect      Rect() const                            { return ImRect(Pos.x, Pos.y, Pos.x+Size.x, Pos.y+Size.y); }
-    float       CalcFontSize() const                    { return GImGui->FontBaseSize * FontWindowScale; }
+    float       CalcFontSize() const                    { return GImGui->FontBaseSize * FontWindowScale * FontDpiScale; }
     float       TitleBarHeight() const                  { return (Flags & ImGuiWindowFlags_NoTitleBar) ? 0.0f : CalcFontSize() + GImGui->Style.FramePadding.y * 2.0f; }
     ImRect      TitleBarRect() const                    { return ImRect(Pos, ImVec2(Pos.x + SizeFull.x, Pos.y + TitleBarHeight())); }
     float       MenuBarHeight() const                   { return (Flags & ImGuiWindowFlags_MenuBar) ? CalcFontSize() + GImGui->Style.FramePadding.y * 2.0f : 0.0f; }
@@ -1020,7 +1076,7 @@ namespace ImGui
     inline    ImGuiWindow*  GetCurrentWindowRead()      { ImGuiContext& g = *GImGui; return g.CurrentWindow; }
     inline    ImGuiWindow*  GetCurrentWindow()          { ImGuiContext& g = *GImGui; g.CurrentWindow->WriteAccessed = true; return g.CurrentWindow; }
     IMGUI_API ImGuiWindow*  FindWindowByName(const char* name);
-    IMGUI_API void          FocusWindow(ImGuiWindow* window);
+    IMGUI_API void          FocusWindow(ImGuiWindow* window); // FIXME: Rename to SetWindowFocus()
     IMGUI_API void          BringWindowToFront(ImGuiWindow* window);
     IMGUI_API void          BringWindowToBack(ImGuiWindow* window);
     IMGUI_API bool          IsWindowChildOf(ImGuiWindow* window, ImGuiWindow* potential_parent);
@@ -1028,6 +1084,18 @@ namespace ImGui
 
     IMGUI_API void          Initialize(ImGuiContext* context);
     IMGUI_API void          Shutdown(ImGuiContext* context);    // Since 1.60 this is a _private_ function. You can call DestroyContext() to destroy the context created by CreateContext().
+
+    // Viewports
+    IMGUI_API ImGuiViewport*        Viewport(ImGuiWindow* window, ImGuiID id, ImGuiViewportFlags flags, const ImVec2& platform_pos, const ImVec2& size);
+    inline ImVector<ImGuiViewport*>&GetViewports() { return GImGui->Viewports; }
+    inline ImGuiViewport*           GetMainViewport() { return GImGui->Viewports[0]; }
+    IMGUI_API ImGuiViewport*        FindViewportByID(ImGuiID id);
+    IMGUI_API ImGuiViewport*        FindViewportByPlatformHandle(void* platform_handle);
+    IMGUI_API void                  SetNextWindowViewport(ImGuiID id);
+    IMGUI_API void                  ScaleWindowsInViewport(ImGuiViewport* viewport, float scale);
+    IMGUI_API void                  ShowViewportThumbnails();
+    IMGUI_API void                  DestroyViewportsPlaformData(ImGuiContext* context);
+    IMGUI_API void                  DestroyViewportsRendererData(ImGuiContext* context);
 
     IMGUI_API void                  MarkIniSettingsDirty();
     IMGUI_API ImGuiSettingsHandler* FindSettingsHandler(const char* type_name);

@@ -1,6 +1,7 @@
 //-----------------------------------------------------------------------------
 // COMPILE-TIME OPTIONS FOR DEAR IMGUI
-// Most options (memory allocation, clipboard callbacks, etc.) can be set at runtime via the ImGuiIO structure - ImGui::GetIO().
+// Runtime options (clipboard callbacks, enabling various features, etc.) can generally be set via the ImGuiIO structure.
+// You can use ImGui::SetAllocatorFunctions() before calling ImGui::CreateContext() to rewire memory allocation functions.
 //-----------------------------------------------------------------------------
 // A) You may edit imconfig.h (and not overwrite it when updating imgui, or maintain a patch/branch with your modifications to imconfig.h)
 // B) or add configuration directives in your own file and compile with #define IMGUI_USER_CONFIG "myfilename.h" 
@@ -24,7 +25,7 @@
 //#define IMGUI_DISABLE_WIN32_DEFAULT_IME_FUNCTIONS         // Don't use and link with ImmGetContext/ImmSetCompositionWindow.
 
 //---- Don't implement demo windows functionality (ShowDemoWindow()/ShowStyleEditor()/ShowUserGuide() methods will be empty)
-//---- It is very strongly recommended to NOT disable the demo windows. Please read the comment at the top of imgui_demo.cpp.
+//---- It is very strongly recommended to NOT disable the demo windows during development. Please read the comments in imgui_demo.cpp.
 //#define IMGUI_DISABLE_DEMO_WINDOWS
 
 //---- Don't implement ImFormatString(), ImFormatStringV() so you can reimplement them yourself.
