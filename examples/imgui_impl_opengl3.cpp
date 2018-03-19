@@ -4,9 +4,10 @@
 
 // CHANGELOG 
 // (minor and older changes stripped away, please see git history for details)
+//  2018-XX-XX: Platform: Added support for multiple windows via the ImGuiPlatformIO interface.
+//  2018-XX-XX: OpenGL: Offset projection matrix and clipping rectangle by draw_data->DisplayPos (which will be non-zero for multi-viewport applications).
 //  2018-03-06: OpenGL: Added const char* glsl_version parameter to ImGui_ImplOpenGL3_Init() so user can override the GLSL version e.g. "#version 150".
 //  2018-02-23: OpenGL: Create the VAO in the render function so the setup can more easily be used with multiple shared GL context.
-//  2018-XX-XX: OpenGL: Offset projection matrix and clipping rectangle by draw_data->DisplayPos (which will be non-zero for multi-viewport applications).
 //  2018-02-16: Misc: Obsoleted the io.RenderDrawListsFn callback and exposed ImGui_ImplSdlGL3_RenderDrawData() in the .h file so you can call it yourself.
 //  2018-01-07: OpenGL: Changed GLSL shader version from 330 to 150.
 //  2017-09-01: OpenGL: Save and restore current bound sampler. Save and restore current polygon mode.
@@ -323,13 +324,11 @@ void    ImGui_ImplOpenGL3_DestroyDeviceObjects()
     ImGui_ImplOpenGL3_DestroyFontsTexture();
 }
 
-// --------------------------------------------------------------------------------------------------------
-// Platform Windows
-// --------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------
+// Platform Interface (Optional, for multi-viewport support)
+//--------------------------------------------------------------------------------------------------------
 
-#include "imgui_internal.h"     // ImGuiViewport
-
-static void ImGui_ImplOpenGL3_RenderViewport(ImGuiViewport* viewport)
+static void ImGui_ImplOpenGL3_RenderWindow(ImGuiViewport* viewport)
 {
     if (!(viewport->Flags & ImGuiViewportFlags_NoRendererClear))
     {
@@ -337,18 +336,16 @@ static void ImGui_ImplOpenGL3_RenderViewport(ImGuiViewport* viewport)
         glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
     }
-    ImGui_ImplOpenGL3_RenderDrawData(&viewport->DrawData);
+    ImGui_ImplOpenGL3_RenderDrawData(viewport->DrawData);
 }
 
-void ImGui_ImplOpenGL3_InitPlatformInterface()
+static void ImGui_ImplOpenGL3_InitPlatformInterface()
 {
-    ImGuiIO& io = ImGui::GetIO();
-    io.RendererInterface.RenderViewport = ImGui_ImplOpenGL3_RenderViewport;
+    ImGuiPlatformIO& platform_io = ImGui::GetPlatformIO();
+    platform_io.Renderer_RenderWindow = ImGui_ImplOpenGL3_RenderWindow;
 }
 
-void ImGui_ImplOpenGL3_ShutdownPlatformInterface()
+static void ImGui_ImplOpenGL3_ShutdownPlatformInterface()
 {
-    ImGui::DestroyViewportsRendererData(ImGui::GetCurrentContext());
-    ImGuiIO& io = ImGui::GetIO();
-    memset(&io.RendererInterface, 0, sizeof(io.RendererInterface));
+    ImGui::DestroyPlatformWindows();
 }

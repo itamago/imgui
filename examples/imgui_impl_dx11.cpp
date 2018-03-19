@@ -11,7 +11,7 @@
 
 // CHANGELOG
 // (minor and older changes stripped away, please see git history for details)
-//  2018-XX-XX: Platform: Added support for multiple windows via the ImGuiRendererInterface.
+//  2018-XX-XX: Platform: Added support for multiple windows via the ImGuiPlatformIO interface.
 //  2018-XX-XX: DirectX11: Offset projection matrix and clipping rectangle by draw_data->DisplayPos (which will be non-zero for multi-viewport applications).
 //  2018-02-16: Misc: Obsoleted the io.RenderDrawListsFn callback and exposed ImGui_ImplDX11_RenderDrawData() in the .h file so you can call it yourself.
 //  2018-02-06: Misc: Removed call to ImGui::Shutdown() which is not available from 1.60 WIP, user needs to call CreateContext/DestroyContext themselves.
@@ -507,27 +507,24 @@ void ImGui_ImplDX11_NewFrame()
         ImGui_ImplDX11_CreateDeviceObjects();
 }
 
-// --------------------------------------------------------------------------------------------------------
-// Platform Windows
-// --------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------
+// Platform Interface (Optional, for multi-viewport support)
+//--------------------------------------------------------------------------------------------------------
 
-#include "imgui_internal.h"     // ImGuiViewport
-
-struct ImGuiPlatformDataDx11
+struct ImGuiViewportDataDx11
 {
     IDXGISwapChain*             SwapChain;
     ID3D11RenderTargetView*     RTView;
 
-    ImGuiPlatformDataDx11()     { SwapChain = NULL; RTView = NULL; }
-    ~ImGuiPlatformDataDx11()    { IM_ASSERT(SwapChain == NULL && RTView == NULL); }
+    ImGuiViewportDataDx11()     { SwapChain = NULL; RTView = NULL; }
+    ~ImGuiViewportDataDx11()    { IM_ASSERT(SwapChain == NULL && RTView == NULL); }
 };
 
-static void ImGui_ImplDX11_CreateViewport(ImGuiViewport* viewport)
+static void ImGui_ImplDX11_CreateWindow(ImGuiViewport* viewport)
 {
-    ImGuiPlatformDataDx11* data = IM_NEW(ImGuiPlatformDataDx11)();
+    ImGuiViewportDataDx11* data = IM_NEW(ImGuiViewportDataDx11)();
     viewport->RendererUserData = data;
 
-    // FIXME-PLATFORM
     HWND hwnd = (HWND)viewport->PlatformHandle;
     IM_ASSERT(hwnd != 0);
 
@@ -559,9 +556,9 @@ static void ImGui_ImplDX11_CreateViewport(ImGuiViewport* viewport)
     }
 }
 
-static void ImGui_ImplDX11_DestroyViewport(ImGuiViewport* viewport)
+static void ImGui_ImplDX11_DestroyWindow(ImGuiViewport* viewport)
 {
-    if (ImGuiPlatformDataDx11* data = (ImGuiPlatformDataDx11*)viewport->RendererUserData)
+    if (ImGuiViewportDataDx11* data = (ImGuiViewportDataDx11*)viewport->RendererUserData)
     {
         if (data->SwapChain)
             data->SwapChain->Release();
@@ -574,9 +571,9 @@ static void ImGui_ImplDX11_DestroyViewport(ImGuiViewport* viewport)
     viewport->RendererUserData = NULL;
 }
 
-static void ImGui_ImplDX11_ResizeViewport(ImGuiViewport* viewport, ImVec2 size)
+static void ImGui_ImplDX11_SetWindowSize(ImGuiViewport* viewport, ImVec2 size)
 {
-    ImGuiPlatformDataDx11* data = (ImGuiPlatformDataDx11*)viewport->RendererUserData;
+    ImGuiViewportDataDx11* data = (ImGuiViewportDataDx11*)viewport->RendererUserData;
     if (data->RTView)
     {
         data->RTView->Release();
@@ -592,36 +589,33 @@ static void ImGui_ImplDX11_ResizeViewport(ImGuiViewport* viewport, ImVec2 size)
     }
 }
 
-static void ImGui_ImplDX11_RenderViewport(ImGuiViewport* viewport)
+static void ImGui_ImplDX11_RenderWindow(ImGuiViewport* viewport)
 {
-    ImGuiPlatformDataDx11* data = (ImGuiPlatformDataDx11*)viewport->RendererUserData;
+    ImGuiViewportDataDx11* data = (ImGuiViewportDataDx11*)viewport->RendererUserData;
     ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
     g_pd3dDeviceContext->OMSetRenderTargets(1, &data->RTView, NULL);
     if (!(viewport->Flags & ImGuiViewportFlags_NoRendererClear))
         g_pd3dDeviceContext->ClearRenderTargetView(data->RTView, (float*)&clear_color);
-    ImGui_ImplDX11_RenderDrawData(&viewport->DrawData);
+    ImGui_ImplDX11_RenderDrawData(viewport->DrawData);
 }
 
 static void ImGui_ImplDX11_SwapBuffers(ImGuiViewport* viewport)
 {
-    ImGuiPlatformDataDx11* data = (ImGuiPlatformDataDx11*)viewport->RendererUserData;
+    ImGuiViewportDataDx11* data = (ImGuiViewportDataDx11*)viewport->RendererUserData;
     data->SwapChain->Present(0, 0); // Present without vsync
 }
 
-void ImGui_ImplDX11_InitPlatformInterface()
+static void ImGui_ImplDX11_InitPlatformInterface()
 {
-    ImGuiIO& io = ImGui::GetIO();
-    io.RendererInterface.CreateViewport = ImGui_ImplDX11_CreateViewport;
-    io.RendererInterface.DestroyViewport = ImGui_ImplDX11_DestroyViewport;
-    io.RendererInterface.ResizeViewport = ImGui_ImplDX11_ResizeViewport;
-    io.RendererInterface.RenderViewport = ImGui_ImplDX11_RenderViewport;
-    io.RendererInterface.SwapBuffers = ImGui_ImplDX11_SwapBuffers;
+    ImGuiPlatformIO& platform_io = ImGui::GetPlatformIO();
+    platform_io.Renderer_CreateWindow = ImGui_ImplDX11_CreateWindow;
+    platform_io.Renderer_DestroyWindow = ImGui_ImplDX11_DestroyWindow;
+    platform_io.Renderer_SetWindowSize = ImGui_ImplDX11_SetWindowSize;
+    platform_io.Renderer_RenderWindow = ImGui_ImplDX11_RenderWindow;
+    platform_io.Renderer_SwapBuffers = ImGui_ImplDX11_SwapBuffers;
 }
 
-void ImGui_ImplDX11_ShutdownPlatformInterface()
+static void ImGui_ImplDX11_ShutdownPlatformInterface()
 {
-    ImGui::DestroyViewportsRendererData(ImGui::GetCurrentContext());
-    ImGuiIO& io = ImGui::GetIO();
-    memset(&io.RendererInterface, 0, sizeof(io.RendererInterface));
+    ImGui::DestroyPlatformWindows();
 }
-
