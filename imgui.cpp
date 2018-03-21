@@ -224,7 +224,8 @@
        - or query focus information with e.g. IsWindowFocused(), IsItemFocused() etc. functions.
       Please reach out if you think the game vs navigation input sharing could be improved.
  - Gamepad:
-    - Set io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad to enable. Fill the io.NavInputs[] fields before calling NewFrame(). Note that io.NavInputs[] is cleared by EndFrame().
+    - Set io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad to enable.
+    - Backend: Set io.BackendFlags |= ImGuiBackendFlags_HasGamepad + fill the io.NavInputs[] fields before calling NewFrame(). Note that io.NavInputs[] is cleared by EndFrame().
     - See 'enum ImGuiNavInput_' in imgui.h for a description of inputs. For each entry of io.NavInputs[], set the following values:
          0.0f= not held. 1.0f= fully held. Pass intermediate 0.0f..1.0f values for analog triggers/sticks.
     - We uses a simple >0.0f test for activation testing, and won't attempt to test for a dead-zone.
@@ -235,11 +236,11 @@
  - Mouse:
     - PS4 users: Consider emulating a mouse cursor with DualShock4 touch pad or a spare analog stick as a mouse-emulation fallback.
     - Consoles/Tablet/Phone users: Consider using a Synergy 1.x server (on your PC) + uSynergy.c (on your console/tablet/phone app) to share your PC mouse/keyboard.
-    - On a TV/console system where readability may be lower or mouse inputs may be awkward, you may want to set the ImGuiConfigFlags_NavMoveMouse flag.
-      Enabling ImGuiConfigFlags_NavMoveMouse instructs dear imgui to move your mouse cursor along with navigation movements.
-      When enabled, the NewFrame() function may alter 'io.MousePos' and set 'io.WantMoveMouse' to notify you that it wants the mouse cursor to be moved.
+    - On a TV/console system where readability may be lower or mouse inputs may be awkward, you may want to set the ImGuiConfigFlags_NavEnableSetMousePos flag.
+      Enabling ImGuiConfigFlags_NavEnableSetMousePos + ImGuiBackendFlags_HasSetMousePos instructs dear imgui to move your mouse cursor along with navigation movements.
+      When enabled, the NewFrame() function may alter 'io.MousePos' and set 'io.WantSetMousePos' to notify you that it wants the mouse cursor to be moved.
       When that happens your back-end NEEDS to move the OS or underlying mouse cursor on the next frame. Some of the binding in examples/ do that.
-      (If you set the NavMoveMouse flag but don't honor 'io.WantMoveMouse' properly, imgui will misbehave as it will see your mouse as moving back and forth!)
+      (If you set the NavEnableSetMousePos flag but don't honor 'io.WantSetMousePos' properly, imgui will misbehave as it will see your mouse as moving back and forth!)
       (In a setup when you may not have easy control over the mouse cursor, e.g. uSynergy.c doesn't expose moving remote mouse cursor, you may want
        to set a boolean to ignore your other external mouse positions until the external source is moved again.)
 
@@ -251,6 +252,7 @@
  Here is a change-log of API breaking changes, if you are using one of the functions listed, expect to have to fix some code.
  Also read releases logs https://github.com/ocornut/imgui/releases for more details.
 
+ - 2018/03/20 (1.60) - Renamed io.WantMoveMouse to io.WantSetMousePos for consistency and ease of understanding (was added in 1.52, _not_ used by core and only honored by some binding ahead of merging the Nav branch).
  - 2018/03/12 (1.60) - Removed ImGuiCol_CloseButton, ImGuiCol_CloseButtonActive, ImGuiCol_CloseButtonHovered as the closing cross uses regular button colors now.
  - 2018/03/08 (1.60) - Changed ImFont::DisplayOffset.y to default to 0 instead of +1. Fixed rounding of Ascent/Descent to match TrueType renderer. If you were adding or subtracting to ImFont::DisplayOffset check if your fonts are correctly aligned vertically.
  - 2018/03/03 (1.60) - Renamed ImGuiStyleVar_Count_ to ImGuiStyleVar_COUNT and ImGuiMouseCursor_Count_ to ImGuiMouseCursor_COUNT for consistency with other public enums.
@@ -857,9 +859,10 @@ ImGuiIO::ImGuiIO()
     memset(this, 0, sizeof(*this));
 
     // Settings
+    ConfigFlags = 0x00;
+    BackendFlags = 0x00;
     DisplaySize = ImVec2(-1.0f, -1.0f);
     DeltaTime = 1.0f/60.0f;
-    ConfigFlags = 0x00;
     IniSavingRate = 5.0f;
     IniFilename = "imgui.ini";
     LogFilename = "imgui_log.txt";
@@ -2023,7 +2026,7 @@ static void SetNavID(ImGuiID id, int nav_layer)
     g.NavWindow->NavLastIds[nav_layer] = id;
 }
 
-static void SetNavIDAndMoveMouse(ImGuiID id, int nav_layer, const ImRect& rect_rel)
+static void SetNavIDWithRectRel(ImGuiID id, int nav_layer, const ImRect& rect_rel)
 {
     ImGuiContext& g = *GImGui;
     SetNavID(id, nav_layer);
@@ -2129,7 +2132,7 @@ static inline bool IsWindowContentHoverable(ImGuiWindow* window, ImGuiHoveredFla
             }
 
     // Filter by viewport
-    if (window->Viewport != g.MouseViewport)
+    if (window->Viewport != g.MousePosViewport)
         return false;
 
     return true;
@@ -2334,7 +2337,7 @@ static void NavRestoreLayer(int layer)
     if (layer == 0)
         g.NavWindow = NavRestoreLastChildNavWindow(g.NavWindow);
     if (layer == 0 && g.NavWindow->NavLastIds[0] != 0)
-        SetNavIDAndMoveMouse(g.NavWindow->NavLastIds[0], layer, g.NavWindow->NavRectRel[0]);
+        SetNavIDWithRectRel(g.NavWindow->NavLastIds[0], layer, g.NavWindow->NavRectRel[0]);
     else
         ImGui::NavInitWindow(g.NavWindow, true);
 }
@@ -2842,12 +2845,12 @@ static void ImGui::NavUpdateWindowing()
             g.NavWindowingTarget = window->RootWindowForTabbing;
             g.NavWindowingHighlightTimer = g.NavWindowingHighlightAlpha = 0.0f;
             g.NavWindowingToggleLayer = start_windowing_with_keyboard ? false : true;
-            g.NavWindowingInputSource = start_windowing_with_keyboard ? ImGuiInputSource_NavKeyboard : ImGuiInputSource_NavGamepad;
+            g.NavInputSource = start_windowing_with_keyboard ? ImGuiInputSource_NavKeyboard : ImGuiInputSource_NavGamepad;
         }
 
     // Gamepad update
     g.NavWindowingHighlightTimer += g.IO.DeltaTime;
-    if (g.NavWindowingTarget && g.NavWindowingInputSource == ImGuiInputSource_NavGamepad)
+    if (g.NavWindowingTarget && g.NavInputSource == ImGuiInputSource_NavGamepad)
     {
         // Highlight only appears after a brief time holding the button, so that a fast tap on PadMenu (to toggle NavLayer) doesn't add visual noise
         g.NavWindowingHighlightAlpha = ImMax(g.NavWindowingHighlightAlpha, ImSaturate((g.NavWindowingHighlightTimer - 0.20f) / 0.05f));
@@ -2873,7 +2876,7 @@ static void ImGui::NavUpdateWindowing()
     }
 
     // Keyboard: Focus
-    if (g.NavWindowingTarget && g.NavWindowingInputSource == ImGuiInputSource_NavKeyboard)
+    if (g.NavWindowingTarget && g.NavInputSource == ImGuiInputSource_NavKeyboard)
     {
         // Visuals only appears after a brief time after pressing TAB the first time, so that a fast CTRL+TAB doesn't add visual noise
         g.NavWindowingHighlightAlpha = ImMax(g.NavWindowingHighlightAlpha, ImSaturate((g.NavWindowingHighlightTimer - 0.15f) / 0.04f)); // 1.0f
@@ -2893,9 +2896,9 @@ static void ImGui::NavUpdateWindowing()
     if (g.NavWindowingTarget && !(g.NavWindowingTarget->Flags & ImGuiWindowFlags_NoMove))
     {
         ImVec2 move_delta;
-        if (g.NavWindowingInputSource == ImGuiInputSource_NavKeyboard && !g.IO.KeyShift)
+        if (g.NavInputSource == ImGuiInputSource_NavKeyboard && !g.IO.KeyShift)
             move_delta = GetNavInputAmount2d(ImGuiNavDirSourceFlags_Keyboard, ImGuiInputReadMode_Down);
-        if (g.NavWindowingInputSource == ImGuiInputSource_NavGamepad)
+        if (g.NavInputSource == ImGuiInputSource_NavGamepad)
             move_delta = GetNavInputAmount2d(ImGuiNavDirSourceFlags_PadLStick, ImGuiInputReadMode_Down);
         if (move_delta.x != 0.0f || move_delta.y != 0.0f)
         {
@@ -2982,17 +2985,20 @@ static void NavScrollToBringItemIntoView(ImGuiWindow* window, ImRect& item_rect_
 static void ImGui::NavUpdate()
 {
     ImGuiContext& g = *GImGui;
-    g.IO.WantMoveMouse = false;
+    g.IO.WantSetMousePos = false;
 
 #if 0
     if (g.NavScoringCount > 0) printf("[%05d] NavScoringCount %d for '%s' layer %d (Init:%d, Move:%d)\n", g.FrameCount, g.NavScoringCount, g.NavWindow ? g.NavWindow->Name : "NULL", g.NavLayer, g.NavInitRequest || g.NavInitResultId != 0, g.NavMoveRequest);
 #endif
 
+    if ((g.IO.ConfigFlags & ImGuiConfigFlags_NavEnableGamepad) && (g.IO.BackendFlags & ImGuiBackendFlags_HasGamepad))
+        if (g.IO.NavInputs[ImGuiNavInput_Activate] > 0.0f || g.IO.NavInputs[ImGuiNavInput_Input] > 0.0f || g.IO.NavInputs[ImGuiNavInput_Cancel] > 0.0f || g.IO.NavInputs[ImGuiNavInput_Menu] > 0.0f)
+            g.NavInputSource = ImGuiInputSource_NavGamepad;
+
     // Update Keyboard->Nav inputs mapping
-    memset(g.IO.NavInputs + ImGuiNavInput_InternalStart_, 0, (ImGuiNavInput_COUNT - ImGuiNavInput_InternalStart_) * sizeof(g.IO.NavInputs[0]));
     if (g.IO.ConfigFlags & ImGuiConfigFlags_NavEnableKeyboard)
     {
-        #define NAV_MAP_KEY(_KEY, _NAV_INPUT)   if (g.IO.KeyMap[_KEY] != -1 && IsKeyDown(g.IO.KeyMap[_KEY])) g.IO.NavInputs[_NAV_INPUT] = 1.0f;
+        #define NAV_MAP_KEY(_KEY, _NAV_INPUT) if (IsKeyDown(g.IO.KeyMap[_KEY])) { g.IO.NavInputs[_NAV_INPUT] = 1.0f; g.NavInputSource = ImGuiInputSource_NavKeyboard; }
         NAV_MAP_KEY(ImGuiKey_Space,     ImGuiNavInput_Activate );
         NAV_MAP_KEY(ImGuiKey_Enter,     ImGuiNavInput_Input    );
         NAV_MAP_KEY(ImGuiKey_Escape,    ImGuiNavInput_Cancel   );
@@ -3003,7 +3009,7 @@ static void ImGui::NavUpdate()
         if (g.IO.KeyCtrl)   g.IO.NavInputs[ImGuiNavInput_TweakSlow] = 1.0f;
         if (g.IO.KeyShift)  g.IO.NavInputs[ImGuiNavInput_TweakFast] = 1.0f;
         if (g.IO.KeyAlt)    g.IO.NavInputs[ImGuiNavInput_KeyMenu_]  = 1.0f;
-#undef NAV_MAP_KEY
+        #undef NAV_MAP_KEY
     }
 
     memcpy(g.IO.NavInputsDownDurationPrev, g.IO.NavInputsDownDuration, sizeof(g.IO.NavInputsDownDuration));
@@ -3016,7 +3022,7 @@ static void ImGui::NavUpdate()
         // Apply result from previous navigation init request (will typically select the first item, unless SetItemDefaultFocus() has been called)
         IM_ASSERT(g.NavWindow);
         if (g.NavInitRequestFromMove)
-            SetNavIDAndMoveMouse(g.NavInitResultId, g.NavLayer, g.NavInitResultRectRel);
+            SetNavIDWithRectRel(g.NavInitResultId, g.NavLayer, g.NavInitResultRectRel);
         else
             SetNavID(g.NavInitResultId, g.NavLayer);
         g.NavWindow->NavRectRel[g.NavLayer] = g.NavInitResultRectRel;
@@ -3044,7 +3050,7 @@ static void ImGui::NavUpdate()
         // Apply result from previous frame navigation directional move request
         ClearActiveID();
         g.NavWindow = result->Window;
-        SetNavIDAndMoveMouse(result->ID, g.NavLayer, result->RectRel);
+        SetNavIDWithRectRel(result->ID, g.NavLayer, result->RectRel);
         g.NavJustMovedToId = result->ID;
         g.NavMoveFromClampedRefRect = false;
     }
@@ -3062,10 +3068,10 @@ static void ImGui::NavUpdate()
     if (g.NavMousePosDirty && g.NavIdIsAlive)
     {
         // Set mouse position given our knowledge of the nav widget position from last frame
-        if (g.IO.ConfigFlags & ImGuiConfigFlags_NavMoveMouse)
+        if ((g.IO.ConfigFlags & ImGuiConfigFlags_NavEnableSetMousePos) && (g.IO.BackendFlags & ImGuiBackendFlags_HasSetMousePos))
         {
             g.IO.MousePos = g.IO.MousePosPrev = NavCalcPreferredMousePos();
-            g.IO.WantMoveMouse = true;
+            g.IO.WantSetMousePos = true;
         }
         g.NavMousePosDirty = false;
     }
@@ -3082,7 +3088,9 @@ static void ImGui::NavUpdate()
     NavUpdateWindowing();
 
     // Set output flags for user application
-    g.IO.NavActive = (g.IO.ConfigFlags & (ImGuiConfigFlags_NavEnableGamepad | ImGuiConfigFlags_NavEnableKeyboard)) && g.NavWindow && !(g.NavWindow->Flags & ImGuiWindowFlags_NoNavInputs);
+    bool nav_keyboard_active = (g.IO.ConfigFlags & ImGuiConfigFlags_NavEnableKeyboard) != 0;
+    bool nav_gamepad_active = (g.IO.ConfigFlags & ImGuiConfigFlags_NavEnableGamepad) != 0 && (g.IO.BackendFlags & ImGuiBackendFlags_HasGamepad) != 0;
+    g.IO.NavActive = (nav_keyboard_active || nav_gamepad_active) && g.NavWindow && !(g.NavWindow->Flags & ImGuiWindowFlags_NoNavInputs);
     g.IO.NavVisible = (g.IO.NavActive && g.NavId != 0 && !g.NavDisableHighlight) || (g.NavWindowingTarget != NULL) || g.NavInitRequest;
 
     // Process NavCancel input (to close a popup, get back to parent, clear focus)
@@ -3257,21 +3265,21 @@ static void ImGui::UpdateMovingWindowDropViewport(ImGuiWindow* window)
     if (!(g.IO.ConfigFlags & ImGuiConfigFlags_EnableViewports))
         return;
 
-    ImRect mouse_viewport_rect = g.MouseViewport->GetRect();
-    ImVec2 window_pos_in_mouse_viewport = ConvertPlatformPosToViewportPos(ConvertViewportPosToPlatformPos(window->Pos, window->Viewport), g.MouseViewport);
+    ImRect mouse_viewport_rect = g.MousePosViewport->GetRect();
+    ImVec2 window_pos_in_mouse_viewport = ConvertPlatformPosToViewportPos(ConvertViewportPosToPlatformPos(window->Pos, window->Viewport), g.MousePosViewport);
     ImRect window_rect_in_mouse_viewport = ImRect(window_pos_in_mouse_viewport, window_pos_in_mouse_viewport + window->Size);
-    if ((g.MouseViewport->Flags & ImGuiViewportFlags_CanHostOtherWindows) &&  mouse_viewport_rect.Contains(window_rect_in_mouse_viewport))
+    if ((g.MousePosViewport->Flags & ImGuiViewportFlags_CanHostOtherWindows) &&  mouse_viewport_rect.Contains(window_rect_in_mouse_viewport))
     {
         // Drop on an existing viewport
         ImGuiViewportP* old_viewport = window->Viewport;
-        SetWindowViewportTranslateToPreservePlatformPos(window, window->Viewport, g.MouseViewport);
+        SetWindowViewportTranslateToPreservePlatformPos(window, window->Viewport, g.MousePosViewport);
 
         // Our current scheme allow any window to land on a viewport, so when that viewport merges, move other windows as well
         // FIXME-OPT
         if (window->Flags & ImGuiWindowFlags_FullViewport)
             for (int n = 0; n < g.Windows.Size; n++)
                 if (g.Windows[n]->Viewport == old_viewport)
-                    SetWindowViewportTranslateToPreservePlatformPos(g.Windows[n], old_viewport, g.MouseViewport);
+                    SetWindowViewportTranslateToPreservePlatformPos(g.Windows[n], old_viewport, g.MousePosViewport);
     }
     else
     {
@@ -3370,8 +3378,8 @@ static void ImGui::UpdateViewports()
 
             // Destroy
             if (viewport == viewport_ref)               viewport_ref = NULL;
-            if (viewport == g.MouseViewport)            g.MouseViewport = NULL;
-            if (viewport == g.MouseLastHoveredViewport) g.MouseLastHoveredViewport = NULL;
+            if (viewport == g.MousePosViewport)         g.MousePosViewport = NULL;
+            if (viewport == g.MouseHoveredPrevViewport) g.MouseHoveredPrevViewport = NULL;
             IM_ASSERT(viewport->RendererUserData == NULL && viewport->PlatformUserData == NULL && viewport->PlatformHandle == NULL);
             IM_ASSERT(g.PlatformData.Viewports.contains(viewport) == false);
             IM_DELETE(viewport);
@@ -3426,13 +3434,13 @@ static void ImGui::UpdateViewports()
 
     if (!(g.IO.ConfigFlags & ImGuiConfigFlags_EnableViewports))
     {
-        g.MouseViewport = g.MouseLastViewport = main_viewport;
+        g.MousePosViewport = g.MousePosPrevViewport = main_viewport;
         return;
     }
 
     // Mouse handling: decide on the actual mouse viewport for this frame between the active/focused viewport and the hovered viewport.
     ImGuiViewportP* viewport_hovered = NULL;
-    if (g.IO.ConfigFlags & ImGuiConfigFlags_PlatformHasMouseHoveredViewport)
+    if (g.IO.BackendFlags & ImGuiBackendFlags_HasMouseHoveredViewport)
     {
         viewport_hovered = g.IO.MouseHoveredViewport ? FindViewportByID(g.IO.MouseHoveredViewport) : NULL;
         if (viewport_hovered && (viewport_hovered->Flags & ImGuiViewportFlags_NoInputs))
@@ -3449,7 +3457,7 @@ static void ImGui::UpdateViewports()
         viewport_hovered = FindViewportHoveredFromPlatformWindowStack(mouse_platform_pos);
     }
     if (viewport_hovered != NULL)
-        g.MouseLastHoveredViewport = viewport_hovered;
+        g.MouseHoveredPrevViewport = viewport_hovered;
 
     // If reference viewport just has been deleted, use a position relative to the main viewport
     if (viewport_ref == NULL)
@@ -3458,9 +3466,9 @@ static void ImGui::UpdateViewports()
         g.IO.MousePos = ConvertPlatformPosToViewportPos(mouse_platform_pos, viewport_ref);
     }
 
-    g.MouseLastViewport = g.MouseViewport;
-    g.MouseViewport = viewport_ref;
-    g.MouseViewport->LastFrameAsRefViewport = g.FrameCount;
+    g.MousePosPrevViewport = g.MousePosViewport;
+    g.MousePosViewport = viewport_ref;
+    g.MousePosViewport->LastFrameAsRefViewport = g.FrameCount;
 
     // When dragging something, always refer to the last hovered viewport (so when we are between viewport, our dragged preview will tend to show in the last viewport)
     const bool is_mouse_dragging_with_an_expected_destination = g.DragDropActive || (g.MovingWindow != NULL);
@@ -3468,15 +3476,15 @@ static void ImGui::UpdateViewports()
     if (is_mouse_dragging_with_an_expected_destination || is_mouse_all_released)
     {
         if (is_mouse_dragging_with_an_expected_destination)
-            viewport_hovered = g.MouseLastHoveredViewport;
-        if (viewport_hovered != NULL && viewport_hovered != g.MouseViewport && !(viewport_hovered->Flags & ImGuiViewportFlags_NoInputs))
+            viewport_hovered = g.MouseHoveredPrevViewport;
+        if (viewport_hovered != NULL && viewport_hovered != g.MousePosViewport && !(viewport_hovered->Flags & ImGuiViewportFlags_NoInputs))
         {
-            g.IO.MousePos = ConvertPlatformPosToViewportPos(ConvertViewportPosToPlatformPos(g.IO.MousePos, g.MouseViewport), viewport_hovered);
-            g.MouseViewport = viewport_hovered;
+            g.IO.MousePos = ConvertPlatformPosToViewportPos(ConvertViewportPosToPlatformPos(g.IO.MousePos, g.MousePosViewport), viewport_hovered);
+            g.MousePosViewport = viewport_hovered;
         }
     }
 
-    IM_ASSERT(g.MouseViewport != NULL);
+    IM_ASSERT(g.MousePosViewport != NULL);
 }
 
 ImGuiPlatformData* ImGui::GetPlatformData()
@@ -3490,10 +3498,6 @@ void ImGui::UpdatePlatformWindows()
     IM_ASSERT(g.FrameCountEnded == g.FrameCount && "Forgot to call Render() or EndFrame() before UpdatePlatformWindows()?");
     IM_ASSERT(g.FrameCountPlatformEnded < g.FrameCount);
     g.FrameCountPlatformEnded = g.FrameCount;
-
-    g.PlatformData.MainViewport = g.Viewports[0];
-    g.PlatformData.Viewports.resize(0);
-    g.PlatformData.Viewports.push_back(g.Viewports[0]);
     if (!(g.IO.ConfigFlags & ImGuiConfigFlags_EnableViewports))
         return;
 
@@ -3514,9 +3518,6 @@ void ImGui::UpdatePlatformWindows()
             }
             continue;
         }
-
-        g.PlatformData.Viewports.push_back(viewport);
-        IM_ASSERT(viewport->Window != NULL);
 
         bool is_new_window = (viewport->PlatformHandle == NULL && viewport->PlatformUserData == NULL && viewport->RendererUserData == NULL);
         if (is_new_window && viewport->PlatformHandle == NULL && viewport->PlatformUserData == NULL)
@@ -3566,7 +3567,7 @@ void ImGui::UpdatePlatformWindows()
 
 // This is a default/basic function for performing the rendering/swap of multiple platform windows.
 // Custom renderers may prefer to not call this function at all, and instead iterate the platform data and handle rendering/sync themselves.
-// The Render/Swap functions stored in ImGuiPlatformInterface are merely here to allow for this helper to exist, but you can do it yourself:
+// The Render/Swap functions stored in ImGuiPlatformIO are merely here to allow for this helper to exist, but you can do it yourself:
 //
 //    ImGuiPlatformData* data = ImGui::GetPlatformData();
 //    for (int i = 1; i < data->Viewports.Size; i++)
@@ -3575,7 +3576,7 @@ void ImGui::UpdatePlatformWindows()
 //        MySwapBufferFunction(data->Viewports[i], my_args);
 //
 // Note how we intentionally skip the main viewport (index 0) which is generally rendered as part of our main application.
-void ImGui::RenderPlatformWindows()
+void ImGui::RenderPlatformWindows(void* platform_render_arg, void* renderer_render_arg)
 {
     if (!(ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_EnableViewports))
         return;
@@ -3585,18 +3586,14 @@ void ImGui::RenderPlatformWindows()
     for (int i = 1; i < data->Viewports.Size; i++)
     {
         ImGuiViewport* viewport = data->Viewports[i];
-        if (platform_io.Platform_RenderWindow) 
-            platform_io.Platform_RenderWindow(viewport);
-        if (platform_io.Renderer_RenderWindow) 
-            platform_io.Renderer_RenderWindow(viewport);
+        if (platform_io.Platform_RenderWindow) platform_io.Platform_RenderWindow(viewport, platform_render_arg);
+        if (platform_io.Renderer_RenderWindow) platform_io.Renderer_RenderWindow(viewport, renderer_render_arg);
     }
     for (int i = 1; i < data->Viewports.Size; i++)
     {
         ImGuiViewport* viewport = data->Viewports[i];
-        if (platform_io.Platform_SwapBuffers)
-            platform_io.Platform_SwapBuffers(viewport);
-        if (platform_io.Renderer_SwapBuffers)
-            platform_io.Renderer_SwapBuffers(viewport);
+        if (platform_io.Platform_SwapBuffers) platform_io.Platform_SwapBuffers(viewport, platform_render_arg);
+        if (platform_io.Renderer_SwapBuffers) platform_io.Renderer_SwapBuffers(viewport, renderer_render_arg);
     }
 }
 
@@ -3625,12 +3622,12 @@ void ImGui::NewFrame()
     // Perform simple checks for multi-viewport and platform windows support
     if (g.IO.ConfigFlags & ImGuiConfigFlags_EnableViewports)
     {
-        if ((g.IO.ConfigFlags & ImGuiConfigFlags_PlatformHasViewports) && (g.IO.ConfigFlags & ImGuiConfigFlags_RendererHasViewports))
+        if ((g.IO.BackendFlags & ImGuiBackendFlags_PlatformHasViewports) && (g.IO.BackendFlags & ImGuiBackendFlags_RendererHasViewports))
         {
             IM_ASSERT(g.FrameCount == 0 || g.FrameCountPlatformEnded == g.FrameCount && "Forgot to call UpdatePlatformWindows() at the end of the previous frame?");
             IM_ASSERT(g.PlatformIO.Platform_CreateWindow != NULL  && "Platform init didn't install handlers?");
             IM_ASSERT(g.PlatformIO.Platform_DestroyWindow != NULL && "Platform init didn't install handlers?");
-            IM_ASSERT(g.Viewports[0]->PlatformUserData != NULL           && "Platform init didn't setup main viewport.");
+            IM_ASSERT(g.Viewports[0]->PlatformUserData != NULL    && "Platform init didn't setup main viewport.");
 #ifndef IMGUI_DISABLE_OBSOLETE_FUNCTIONS
             IM_ASSERT(g.IO.RenderDrawListsFn == NULL);  // Call ImGui::Render() then pass ImGui::GetDrawData() yourself to your render function!
 #endif
@@ -3717,7 +3714,7 @@ void ImGui::NewFrame()
 
     // Update mouse input state
     // If mouse just appeared or disappeared (usually denoted by -FLT_MAX component, but in reality we test for -256000.0f) we cancel out movement in MouseDelta
-    if (IsMousePosValid(&g.IO.MousePos) && IsMousePosValid(&g.IO.MousePosPrev) && g.MouseViewport == g.MouseLastViewport)
+    if (IsMousePosValid(&g.IO.MousePos) && IsMousePosValid(&g.IO.MousePosPrev) && g.MousePosViewport == g.MousePosPrevViewport)
         g.IO.MouseDelta = g.IO.MousePos - g.IO.MousePosPrev;
     else
         g.IO.MouseDelta = ImVec2(0.0f, 0.0f);
@@ -3782,7 +3779,7 @@ void ImGui::NewFrame()
     // - We also support the moved window toggling the NoInputs flag after moving has started in order to be able to detect windows below it, which is useful for e.g. docking mechanisms.
     g.HoveredWindow = (g.MovingWindow && !(g.MovingWindow->Flags & ImGuiWindowFlags_NoInputs)) ? g.MovingWindow : FindHoveredWindow();
     g.HoveredRootWindow = g.HoveredWindow ? g.HoveredWindow->RootWindow : NULL;
-    IM_ASSERT(g.HoveredWindow == NULL || g.HoveredWindow == g.MovingWindow || g.HoveredWindow->Viewport == g.MouseViewport);
+    IM_ASSERT(g.HoveredWindow == NULL || g.HoveredWindow == g.MovingWindow || g.HoveredWindow->Viewport == g.MousePosViewport);
 
     ImGuiWindow* modal_window = GetFrontMostModalRootWindow();
     if (modal_window != NULL)
@@ -4052,7 +4049,7 @@ void ImGui::Shutdown(ImGuiContext* context)
     g.FontStack.clear();
     g.OpenPopupStack.clear();
     g.CurrentPopupStack.clear();
-    g.CurrentViewport = g.MouseViewport = g.MouseLastViewport = g.MouseLastHoveredViewport = NULL;
+    g.CurrentViewport = g.MousePosViewport = g.MousePosPrevViewport = g.MouseHoveredPrevViewport = NULL;
     for (int i = 0; i < g.Viewports.Size; i++)
         IM_DELETE(g.Viewports[i]);
     g.Viewports.clear();
@@ -4429,6 +4426,19 @@ void ImGui::EndFrame()
         }
     }
 
+    // Update user-side viewport list
+    g.PlatformData.MainViewport = g.Viewports[0];
+    g.PlatformData.Viewports.resize(0);
+    for (int i = 0; i < g.Viewports.Size; i++)
+    {
+        ImGuiViewportP* viewport = g.Viewports[i];
+        if (viewport->LastFrameActive < g.FrameCount)
+            continue;
+        if (i > 0)
+            IM_ASSERT(viewport->Window != NULL);
+        g.PlatformData.Viewports.push_back(viewport);
+    }
+
     // Sort the window list so that all child windows are after their parent
     // We cannot do that on FocusWindow() because childs may not exist yet
     g.WindowsSortBuffer.resize(0);
@@ -4482,7 +4492,7 @@ void ImGui::Render()
         const ImVec2 pos = g.IO.MousePos - offset;
         const ImTextureID tex_id = g.IO.Fonts->TexID;
         const float sc = g.Style.MouseCursorScale;
-        g.OverlayDrawList.PushClipRect(g.MouseViewport->Pos, g.MouseViewport->Pos + g.MouseViewport->Size);
+        g.OverlayDrawList.PushClipRect(g.MousePosViewport->Pos, g.MousePosViewport->Pos + g.MousePosViewport->Size);
         g.OverlayDrawList.PushTextureID(tex_id);
         g.OverlayDrawList.AddImage(tex_id, pos + ImVec2(1,0)*sc, pos+ImVec2(1,0)*sc + size*sc, uv[2], uv[3], IM_COL32(0,0,0,48));        // Shadow
         g.OverlayDrawList.AddImage(tex_id, pos + ImVec2(2,0)*sc, pos+ImVec2(2,0)*sc + size*sc, uv[2], uv[3], IM_COL32(0,0,0,48));        // Shadow
@@ -4987,7 +4997,7 @@ static ImGuiWindow* FindHoveredWindow()
         if (window->Flags & ImGuiWindowFlags_NoInputs)
             continue;
         IM_ASSERT(window->Viewport);
-        if (window->Viewport != g.MouseViewport)
+        if (window->Viewport != g.MousePosViewport)
             continue;
 
         // Using the clipped AABB, a child window will typically be clipped by its parent (not always)
@@ -5015,7 +5025,7 @@ bool ImGui::IsMouseHoveringRect(const ImVec2& r_min, const ImVec2& r_max, bool c
     const ImRect rect_for_touch(rect_clipped.Min - g.Style.TouchExtraPadding, rect_clipped.Max + g.Style.TouchExtraPadding);
     if (!rect_for_touch.Contains(g.IO.MousePos))
         return false;
-    if (!g.MouseViewport->GetRect().Overlaps(rect_clipped))
+    if (!g.MousePosViewport->GetRect().Overlaps(rect_clipped))
         return false;
     return true;
 }
@@ -6023,7 +6033,7 @@ static void ImGui::UpdateWindowViewport(ImGuiWindow* window, bool window_pos_set
         if (!window_is_mouse_tooltip && !current_viewport->GetRect().Contains(window->Rect()))
         {
             // Create an undecorated, temporary OS/platform window
-            ImVec2 platform_pos = ConvertViewportPosToPlatformPos(g.IO.MousePos - g.ActiveIdClickOffset, g.MouseViewport);
+            ImVec2 platform_pos = ConvertViewportPosToPlatformPos(g.IO.MousePos - g.ActiveIdClickOffset, g.MousePosViewport);
             ImGuiViewportFlags viewport_flags = ImGuiViewportFlags_NoDecoration | ImGuiViewportFlags_NoFocusOnAppearing | ImGuiViewportFlags_NoInputs;
             ImGuiViewportP* viewport = Viewport(window, window->ID, viewport_flags, platform_pos, window->Size);
             window->Flags |= ImGuiWindowFlags_FullViewport;
@@ -6039,7 +6049,7 @@ static void ImGui::UpdateWindowViewport(ImGuiWindow* window, bool window_pos_set
             // This is so we don't require of the multi-viewport windowing back-end to preserve mouse buttons after a window closure, making it easier to implement them.
             bool preserve_temporary_viewport = g.MovingWindow && g.MovingWindow->RootWindow == window && (window->Viewport->Flags & ImGuiWindowFlags_FullViewport);
             if (!preserve_temporary_viewport)
-                window->Viewport = g.MouseViewport;
+                window->Viewport = g.MousePosViewport;
         }
     }
     else if (g.NavWindow != NULL && g.NavWindow != window && (flags & ImGuiWindowFlags_Tooltip))
@@ -6206,13 +6216,13 @@ static void ImGui::UpdateManualResize(ImGuiWindow* window, const ImVec2& size_au
     }
     PopID();
 
-    // Navigation/gamepad resize
+    // Navigation resize (keyboard/gamepad)
     if (g.NavWindowingTarget == window)
     {
         ImVec2 nav_resize_delta;
-        if (g.NavWindowingInputSource == ImGuiInputSource_NavKeyboard && g.IO.KeyShift)
+        if (g.NavInputSource == ImGuiInputSource_NavKeyboard && g.IO.KeyShift)
             nav_resize_delta = GetNavInputAmount2d(ImGuiNavDirSourceFlags_Keyboard, ImGuiInputReadMode_Down);
-        if (g.NavWindowingInputSource == ImGuiInputSource_NavGamepad)
+        if (g.NavInputSource == ImGuiInputSource_NavGamepad)
             nav_resize_delta = GetNavInputAmount2d(ImGuiNavDirSourceFlags_PadDPad, ImGuiInputReadMode_Down);
         if (nav_resize_delta.x != 0.0f || nav_resize_delta.y != 0.0f)
         {
@@ -6542,7 +6552,7 @@ bool ImGui::Begin(const char* name, bool* p_open, ImGuiWindowFlags flags)
             float sc = g.Style.MouseCursorScale;
             ImVec2 ref_pos = (!g.NavDisableHighlight && g.NavDisableMouseHover) ? NavCalcPreferredMousePos() : g.IO.MousePos;
             ImRect rect_to_avoid;
-            if (!g.NavDisableHighlight && g.NavDisableMouseHover && !(g.IO.ConfigFlags & ImGuiConfigFlags_NavMoveMouse))
+            if (!g.NavDisableHighlight && g.NavDisableMouseHover && !(g.IO.ConfigFlags & ImGuiConfigFlags_NavEnableSetMousePos))
                 rect_to_avoid = ImRect(ref_pos.x - 16, ref_pos.y - 8, ref_pos.x + 16, ref_pos.y + 8); 
             else
                 rect_to_avoid = ImRect(ref_pos.x - 16, ref_pos.y - 8, ref_pos.x + 24 * sc, ref_pos.y + 24 * sc); // FIXME: Hard-coded based on mouse cursor shape expectation. Exact dimension not very important.
@@ -10637,11 +10647,12 @@ bool ImGui::InputTextEx(const char* label, char* buf, int buf_size, const ImVec2
 
     const bool user_clicked = hovered && io.MouseClicked[0];
     const bool user_scrolled = is_multiline && g.ActiveId == 0 && edit_state.Id == id && g.ActiveIdPreviousFrame == draw_window->GetIDNoKeepAlive("#SCROLLY");
+    const bool user_nav_input_start = (g.ActiveId != id) && ((g.NavInputId == id) || (g.NavActivateId == id && g.NavInputSource == ImGuiInputSource_NavKeyboard));
 
     bool clear_active_id = false;
 
-    bool select_all = (g.ActiveId != id) && (((flags & ImGuiInputTextFlags_AutoSelectAll) != 0) || (g.NavInputId == id)) && (!is_multiline);
-    if (focus_requested || user_clicked || user_scrolled || g.NavInputId == id)
+    bool select_all = (g.ActiveId != id) && ((flags & ImGuiInputTextFlags_AutoSelectAll) != 0 || user_nav_input_start) && (!is_multiline);
+    if (focus_requested || user_clicked || user_scrolled || user_nav_input_start)
     {
         if (g.ActiveId != id)
         {
@@ -10749,18 +10760,15 @@ bool ImGui::InputTextEx(const char* label, char* buf, int buf_size, const ImVec2
         if (io.InputCharacters[0])
         {
             // Process text input (before we check for Return because using some IME will effectively send a Return?)
-            // We ignore CTRL inputs, but need to allow CTRL+ALT as some keyboards (e.g. German) use AltGR - which is Alt+Ctrl - to input certain characters.
-            if (!(io.KeyCtrl && !io.KeyAlt) && is_editable)
-            {
+            // We ignore CTRL inputs, but need to allow ALT+CTRL as some keyboards (e.g. German) use AltGR (which _is_ Alt+Ctrl) to input certain characters.
+            if (!(io.KeyCtrl && !io.KeyAlt) && is_editable && !user_nav_input_start)
                 for (int n = 0; n < IM_ARRAYSIZE(io.InputCharacters) && io.InputCharacters[n]; n++)
-                    if (unsigned int c = (unsigned int)io.InputCharacters[n])
-                    {
-                        // Insert character if they pass filtering
-                        if (!InputTextFilterCharacter(&c, flags, callback, user_data))
-                            continue;
+                {
+                    // Insert character if they pass filtering
+                    unsigned int c = (unsigned int)io.InputCharacters[n];
+                    if (InputTextFilterCharacter(&c, flags, callback, user_data))
                         edit_state.OnKeyPressed((int)c);
-                    }
-            }
+                }
 
             // Consume characters
             memset(g.IO.InputCharacters, 0, sizeof(g.IO.InputCharacters));
@@ -11867,7 +11875,7 @@ void ImGui::EndMenuBar()
             // This involve a one-frame delay which isn't very problematic in this situation. We could remove it by scoring in advance for multiple window (probably not worth the hassle/cost)
             IM_ASSERT(window->DC.NavLayerActiveMaskNext & 0x02); // Sanity check
             FocusWindow(window);
-            SetNavIDAndMoveMouse(window->NavLastIds[1], 1, window->NavRectRel[1]);
+            SetNavIDWithRectRel(window->NavLastIds[1], 1, window->NavRectRel[1]);
             g.NavLayer = 1;
             g.NavDisableHighlight = true; // Hide highlight for the current frame so we don't see the intermediary selection.
             g.NavMoveRequestForward = ImGuiNavForward_ForwardQueued;
@@ -12821,7 +12829,7 @@ void ImGui::Separator()
         return;
     ImGuiContext& g = *GImGui;
 
-    ImGuiWindowFlags flags = 0;
+    ImGuiSeparatorFlags flags = 0;
     if ((flags & (ImGuiSeparatorFlags_Horizontal | ImGuiSeparatorFlags_Vertical)) == 0)
         flags |= (window->DC.LayoutType == ImGuiLayoutType_Horizontal) ? ImGuiSeparatorFlags_Vertical : ImGuiSeparatorFlags_Horizontal;
     IM_ASSERT(ImIsPowerOfTwo((int)(flags & (ImGuiSeparatorFlags_Horizontal | ImGuiSeparatorFlags_Vertical))));   // Check that only 1 option is selected
@@ -14081,11 +14089,16 @@ void ImGui::ShowMetricsWindow(bool* p_open)
             {
                 ImGuiViewportP* viewport = g.Viewports[i];
                 ImGui::SetNextTreeNodeOpen(true, ImGuiCond_Once);
-                if (ImGui::TreeNode((void*)(intptr_t)viewport->ID, "Viewport #%d, ID: 0x%08X, DrawLists: %d, Size: (%.0f,%.0f)", i, viewport->ID, viewport->DrawDataBuilder.GetDrawListCount(), viewport->Size.x, viewport->Size.y))
+                if (ImGui::TreeNode((void*)(intptr_t)viewport->ID, "Viewport #%d, ID: 0x%08X, Size: (%.0f,%.0f)", i, viewport->ID, viewport->Size.x, viewport->Size.y))
                 {
-                    ImGui::BulletText("Pos: (%.0f,%.0f)", viewport->Pos.x, viewport->Pos.y);
-                    ImGui::BulletText("PlatformPos: (%.0f,%.0f); DpiScale: %.0f%%", viewport->PlatformPos.x, viewport->PlatformPos.y, viewport->DpiScale * 100.0f);
-                    ImGui::BulletText("Flags: 0x%04X", viewport->Flags);
+                    ImGuiWindowFlags flags = viewport->Flags;
+                    ImGui::BulletText("Pos: (%.0f,%.0f), PlatformPos: (%.0f,%.0f)", viewport->Pos.x, viewport->Pos.y, viewport->PlatformPos.x, viewport->PlatformPos.y);
+                    if (i > 0) { ImGui::SameLine(); if (ImGui::SmallButton("Reset")) viewport->PlatformPos = ImVec2(0, 0); }
+                    ImGui::BulletText("DpiScale: %.0f%%", viewport->DpiScale * 100.0f);
+                    ImGui::BulletText("Flags: 0x%04X =%s%s%s%s%s", viewport->Flags,
+                        (flags & ImGuiViewportFlags_CanHostOtherWindows) ? " CanHostOtherWindows" : "", (flags & ImGuiViewportFlags_NoDecoration) ? " NoDecoration" : "",
+                        (flags & ImGuiViewportFlags_NoFocusOnAppearing)  ? " NoFocusOnAppearing"  : "", (flags & ImGuiViewportFlags_NoInputs)     ? " NoInputs" : "",
+                        (flags & ImGuiViewportFlags_NoRendererClear)     ? " NoRendererClear"     : "");
                     for (int layer_i = 0; layer_i < IM_ARRAYSIZE(viewport->DrawDataBuilder.Layers); layer_i++)
                         for (int draw_list_i = 0; draw_list_i < viewport->DrawDataBuilder.Layers[layer_i].Size; draw_list_i++)
                             Funcs::NodeDrawList(NULL, viewport->DrawDataBuilder.Layers[layer_i][draw_list_i], "DrawList");
@@ -14105,7 +14118,7 @@ void ImGui::ShowMetricsWindow(bool* p_open)
         }
         if (ImGui::TreeNode("Internal state"))
         {
-            const char* input_source_names[] = { "None", "Mouse", "Nav", "NavGamepad", "NavKeyboard" }; IM_ASSERT(IM_ARRAYSIZE(input_source_names) == ImGuiInputSource_COUNT);
+            const char* input_source_names[] = { "None", "Mouse", "Nav", "NavKeyboard", "NavGamepad" }; IM_ASSERT(IM_ARRAYSIZE(input_source_names) == ImGuiInputSource_COUNT);
             ImGui::Text("HoveredWindow: '%s'", g.HoveredWindow ? g.HoveredWindow->Name : "NULL");
             ImGui::Text("HoveredRootWindow: '%s'", g.HoveredRootWindow ? g.HoveredRootWindow->Name : "NULL");
             ImGui::Text("HoveredId: 0x%08X/0x%08X (%.2f sec)", g.HoveredId, g.HoveredIdPreviousFrame, g.HoveredIdTimer); // Data is "in-flight" so depending on when the Metrics window is called we may see current frame information or not
@@ -14113,6 +14126,7 @@ void ImGui::ShowMetricsWindow(bool* p_open)
             ImGui::Text("ActiveIdWindow: '%s'", g.ActiveIdWindow ? g.ActiveIdWindow->Name : "NULL");
             ImGui::Text("NavWindow: '%s'", g.NavWindow ? g.NavWindow->Name : "NULL");
             ImGui::Text("NavId: 0x%08X, NavLayer: %d", g.NavId, g.NavLayer);
+            ImGui::Text("NavInputSource: %s", input_source_names[g.NavInputSource]);
             ImGui::Text("NavActive: %d, NavVisible: %d", g.IO.NavActive, g.IO.NavVisible);
             ImGui::Text("NavActivateId: 0x%08X, NavInputId: 0x%08X", g.NavActivateId, g.NavInputId);
             ImGui::Text("NavDisableHighlight: %d, NavDisableMouseHover: %d", g.NavDisableHighlight, g.NavDisableMouseHover);

@@ -12,7 +12,7 @@
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.h>
 
-#define IMGUI_UNLIMITED_FRAME_RATE
+//#define IMGUI_UNLIMITED_FRAME_RATE
 #ifdef _DEBUG
 #define IMGUI_VULKAN_DEBUG_REPORT
 #endif
@@ -197,7 +197,7 @@ static void SetupVulkanWindowData(ImGui_ImplVulkan_WindowData* wd, VkSurfaceKHR 
 
     // Get Present Mode
 #ifdef IMGUI_UNLIMITED_FRAME_RATE
-    VkPresentModeKHR present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+    VkPresentModeKHR present_mode = VK_PRESENT_MODE_MAILBOX_KHR;// VK_PRESENT_MODE_IMMEDIATE_KHR;
 #else
     VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR;
 #endif
@@ -319,7 +319,7 @@ int main(int, char**)
         return 1;
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    GLFWwindow* window = glfwCreateWindow(1280, 720, "ImGui Vulkan example", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(1280, 720, "ImGui GLFW+Vulkan example", NULL, NULL);
 
     // Setup Vulkan
     if (!glfwVulkanSupported())
@@ -347,7 +347,7 @@ int main(int, char**)
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_EnableViewports;
-    io.ConfigFlags |= ImGuiConfigFlags_PlatformNoTaskBar;
+    io.ConfigFlags |= ImGuiConfigFlags_NoTaskBarForViewports;
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
 
     // Setup GLFW binding
@@ -479,9 +479,9 @@ int main(int, char**)
         memcpy(&wd->ClearValue.color.float32[0], &clear_color, 4 * sizeof(float));
 		FrameRender(wd);
 
-        // Update and Render additional Platform Windows
+        // Update and Render additional Platform Windows (when ImGuiConfigFlags_EnableViewports is enabled)
         ImGui::UpdatePlatformWindows();
-        ImGui::RenderPlatformWindows();
+        ImGui::RenderPlatformWindows(NULL, NULL);
 
         FramePresent(wd);
     }

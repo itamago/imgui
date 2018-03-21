@@ -2,6 +2,10 @@
 // This needs to be used along with a Platform Binding (e.g. GLFW, SDL, Win32, custom..)
 // (Note: We are using GL3W as a helper library to access OpenGL functions since there is no standard header to access modern OpenGL functions easily. Alternatives are GLEW, Glad, etc..)
 
+// Implemented features:
+//  [X] User texture binding. Use 'GLUint' OpenGL texture identifier as void*/ImTextureID. Read the FAQ about ImTextureID in imgui.cpp.
+//  [X] Multi-viewport rendering (when ImGuiConfigFlags_EnableViewports is enabled).
+
 // CHANGELOG 
 // (minor and older changes stripped away, please see git history for details)
 //  2018-XX-XX: Platform: Added support for multiple windows via the ImGuiPlatformIO interface.
@@ -46,8 +50,9 @@ bool    ImGui_ImplOpenGL3_Init(const char* glsl_version)
     strcpy(g_GlslVersion, glsl_version);
     strcat(g_GlslVersion, "\n");
 
+    // Setup back-end capabilities flags
     ImGuiIO& io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_RendererHasViewports;
+    io.BackendFlags |= ImGuiBackendFlags_RendererHasViewports;    // We can create multi-viewports on the Renderer side (optional)
     if (io.ConfigFlags & ImGuiConfigFlags_EnableViewports)
         ImGui_ImplOpenGL3_InitPlatformInterface();
     return true;
@@ -328,7 +333,7 @@ void    ImGui_ImplOpenGL3_DestroyDeviceObjects()
 // Platform Interface (Optional, for multi-viewport support)
 //--------------------------------------------------------------------------------------------------------
 
-static void ImGui_ImplOpenGL3_RenderWindow(ImGuiViewport* viewport)
+static void ImGui_ImplOpenGL3_RenderWindow(ImGuiViewport* viewport, void*)
 {
     if (!(viewport->Flags & ImGuiViewportFlags_NoRendererClear))
     {

@@ -604,8 +604,10 @@ bool ImGui_ImplDX12_Init(ID3D12Device* device, int num_frames_in_flight, DXGI_FO
         g_pFrameResources[i].IndexBufferSize = 10000;
     }
 
+    // Setup back-end capabilities flags
+    // FIXME-VIEWPORT: Actually unfinshed..
     ImGuiIO& io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_RendererHasViewports; // FIXME-VIEWPORT: Actually unfinshed..
+    io.BackendFlags |= ImGuiBackendFlags_RendererHasViewports;    // We can create multi-viewports on the Renderer side (optional)
     if (io.ConfigFlags & ImGuiConfigFlags_EnableViewports)
         ImGui_ImplDX12_InitPlatformInterface();
 
@@ -726,7 +728,7 @@ static void ImGui_ImplDX12_SetWindowSize(ImGuiViewport* viewport, ImVec2 size)
     */
 }
 
-static void ImGui_ImplDX12_RenderWindow(ImGuiViewport* viewport)
+static void ImGui_ImplDX12_RenderWindow(ImGuiViewport* viewport, void*)
 {
     ImGuiViewportDataDx12* data = (ImGuiViewportDataDx12*)viewport->RendererUserData;
     IM_ASSERT(0);
@@ -740,7 +742,7 @@ static void ImGui_ImplDX12_RenderWindow(ImGuiViewport* viewport)
     ImGui_ImplDX12_RenderDrawData(viewport->DrawData);
 }
 
-static void ImGui_ImplDX12_SwapBuffers(ImGuiViewport* viewport)
+static void ImGui_ImplDX12_SwapBuffers(ImGuiViewport* viewport, void*)
 {
     ImGuiViewportDataDx12* data = (ImGuiViewportDataDx12*)viewport->RendererUserData;
     IM_ASSERT(0);

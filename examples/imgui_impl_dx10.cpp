@@ -3,6 +3,7 @@
 
 // Implemented features:
 //  [X] User texture binding. Use 'ID3D10ShaderResourceView*' as ImTextureID. Read the FAQ about ImTextureID in imgui.cpp.
+//  [X] Multi-viewport rendering (when ImGuiConfigFlags_EnableViewports is enabled).
 
 // You can copy and use unmodified imgui_impl_* files in your project. See main.cpp for an example of using this.
 // If you use this binding you'll need to call 4 functions: ImGui_ImplXXXX_Init(), ImGui_ImplXXXX_NewFrame(), ImGui::Render() and ImGui_ImplXXXX_Shutdown().
@@ -476,10 +477,12 @@ bool    ImGui_ImplDX10_Init(ID3D10Device* device)
     if (pDXGIAdapter->GetParent(IID_PPV_ARGS(&pFactory)) != S_OK)
         return false;
 
-    ImGuiIO& io = ImGui::GetIO();
     g_pd3dDevice = device;
     g_pFactory = pFactory;
-    io.ConfigFlags |= ImGuiConfigFlags_RendererHasViewports;
+
+    // Setup back-end capabilities flags
+    ImGuiIO& io = ImGui::GetIO();
+    io.BackendFlags |= ImGuiBackendFlags_RendererHasViewports;    // We can create multi-viewports on the Renderer side (optional)
     if (io.ConfigFlags & ImGuiConfigFlags_EnableViewports)
         ImGui_ImplDX10_InitPlatformInterface();
     return true;
@@ -581,7 +584,7 @@ static void ImGui_ImplDX10_SetWindowSize(ImGuiViewport* viewport, ImVec2 size)
     }
 }
 
-static void ImGui_ImplDX10_RenderViewport(ImGuiViewport* viewport)
+static void ImGui_ImplDX10_RenderViewport(ImGuiViewport* viewport, void*)
 {
     ImGuiViewportDataDx10* data = (ImGuiViewportDataDx10*)viewport->RendererUserData;
     ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -591,7 +594,7 @@ static void ImGui_ImplDX10_RenderViewport(ImGuiViewport* viewport)
     ImGui_ImplDX10_RenderDrawData(viewport->DrawData);
 }
 
-static void ImGui_ImplDX10_SwapBuffers(ImGuiViewport* viewport)
+static void ImGui_ImplDX10_SwapBuffers(ImGuiViewport* viewport, void*)
 {
     ImGuiViewportDataDx10* data = (ImGuiViewportDataDx10*)viewport->RendererUserData;
     data->SwapChain->Present(0, 0); // Present without vsync

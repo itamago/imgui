@@ -118,7 +118,7 @@ int main(int, char**)
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_EnableViewports;
-    io.ConfigFlags |= ImGuiConfigFlags_PlatformNoTaskBar;
+    io.ConfigFlags |= ImGuiConfigFlags_NoTaskBarForViewports;
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
 
     ImGui_ImplWin32_Init(hwnd);
@@ -208,9 +208,9 @@ int main(int, char**)
         ImGui::Render();
         ImGui_ImplDX10_RenderDrawData(ImGui::GetDrawData());
 
-        // Update and Render additional Platform Windows
+        // Update and Render additional Platform Windows (when ImGuiConfigFlags_EnableViewports is enabled)
         ImGui::UpdatePlatformWindows();
-        ImGui::RenderPlatformWindows();
+        ImGui::RenderPlatformWindows(NULL, NULL);
 
         g_pSwapChain->Present(1, 0); // Present with vsync
         //g_pSwapChain->Present(0, 0); // Present without vsync

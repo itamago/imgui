@@ -95,6 +95,7 @@ typedef int ImGuiStyleVar;          // enum: a variable identifier for styling  
 typedef int ImDrawCornerFlags;      // flags: for ImDrawList::AddRect*() etc.   // enum ImDrawCornerFlags_
 typedef int ImDrawListFlags;        // flags: for ImDrawList                    // enum ImDrawListFlags_
 typedef int ImFontAtlasFlags;       // flags: for ImFontAtlas                   // enum ImFontAtlasFlags_
+typedef int ImGuiBackendFlags;      // flags: for io.BackendFlags               // enum ImGuiBackendFlags_
 typedef int ImGuiColorEditFlags;    // flags: for ColorEdit*(), ColorPicker*()  // enum ImGuiColorEditFlags_
 typedef int ImGuiColumnsFlags;      // flags: for *Columns*()                   // enum ImGuiColumnsFlags_
 typedef int ImGuiConfigFlags;       // flags: for io.ConfigFlags                // enum ImGuiConfigFlags_
@@ -545,12 +546,12 @@ namespace ImGui
     IMGUI_API void          SetClipboardText(const char* text);
 
     // (Optional) Platform interface for multi-viewport support
-    IMGUI_API ImGuiPlatformIO&   GetPlatformIO();           // Platform/Renderer functions.
-    IMGUI_API ImGuiPlatformData* GetPlatformData();         // List of viewports.
-    IMGUI_API ImGuiViewport*     GetMainViewport();         // GetPlatformData()->MainViewport
-    IMGUI_API void               UpdatePlatformWindows();   // Call in main loop. Create/Destroy/Resize platform windows so there's one for each viewport
-    IMGUI_API void               RenderPlatformWindows();   // Call in main loop. Call RenderWindow/SwapBuffers from the ImGuiPlatformIO structure. May be reimplemented by user.
-    IMGUI_API void               DestroyPlatformWindows();  // Call in back-end shutdown.
+    IMGUI_API ImGuiPlatformIO&   GetPlatformIO();                   // Platform/Renderer function, for back-end to setup.
+    IMGUI_API ImGuiPlatformData* GetPlatformData();                 // List of viewports. Viewport 0 is always the main viewport, followed by the secondary viewports.
+    IMGUI_API ImGuiViewport*     GetMainViewport();                 // GetPlatformData()->MainViewport
+    IMGUI_API void               UpdatePlatformWindows();           // Call in main loop. Create/Destroy/Resize platform windows so there's one for each viewport
+    IMGUI_API void               RenderPlatformWindows(void* platform_render_arg, void* renderer_render_arg); // Call in main loop. Call RenderWindow/SwapBuffers from the ImGuiPlatformIO structure. May be reimplemented by user.
+    IMGUI_API void               DestroyPlatformWindows();          // (Optional) Call in back-end shutdown if you need to close Platform Windows before imgui shutdown.
     IMGUI_API ImGuiViewport*     FindViewportByPlatformHandle(void* platform_handle);
 
     // Memory Utilities
@@ -751,7 +752,7 @@ enum ImGuiKey_
 
 // [BETA] Gamepad/Keyboard directional navigation
 // Keyboard: Set io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard to enable. NewFrame() will automatically fill io.NavInputs[] based on your io.KeyDown[] + io.KeyMap[] arrays.
-// Gamepad:  Set io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad to enable. Fill the io.NavInputs[] fields before calling NewFrame(). Note that io.NavInputs[] is cleared by EndFrame().
+// Gamepad:  Set io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad to enable. Back-end: set ImGuiBackendFlags_HasGamepad and fill the io.NavInputs[] fields before calling NewFrame(). Note that io.NavInputs[] is cleared by EndFrame().
 // Read instructions in imgui.cpp for more details. Download PNG/PSD at goo.gl/9LgVZW.
 enum ImGuiNavInput_
 {
@@ -784,31 +785,37 @@ enum ImGuiNavInput_
     ImGuiNavInput_InternalStart_ = ImGuiNavInput_KeyMenu_
 };
 
-// Configuration flags stored in io.ConfigFlags
+// Configuration flags stored in io.ConfigFlags. Set by user/application.
 enum ImGuiConfigFlags_
 {
-    // Navigation
-    ImGuiConfigFlags_NavEnableKeyboard                  = 1 << 0,   // Keyboard navigation enable flag. NewFrame() will automatically fill io.NavInputs[] based on io.KeyDown[].
-    ImGuiConfigFlags_NavEnableGamepad                   = 1 << 1,   // Gamepad navigation enable flag. This is mostly to instruct your imgui back-end to fill io.NavInputs[].
-    ImGuiConfigFlags_NavMoveMouse                       = 1 << 2,   // Request navigation to allow moving the mouse cursor. May be useful on TV/console systems where moving a virtual mouse is awkward. Will update io.MousePos and set io.WantMoveMouse=true. If enabled you MUST honor io.WantMoveMouse requests in your binding, otherwise ImGui will react as if the mouse is jumping around back and forth.
-    ImGuiConfigFlags_NavNoCaptureKeyboard               = 1 << 3,   // Do not set the io.WantCaptureKeyboard flag with io.NavActive is set. 
+    ImGuiConfigFlags_NavEnableKeyboard        = 1 << 0,  // Master keyboard navigation enable flag. NewFrame() will automatically fill io.NavInputs[] based on io.KeyDown[].
+    ImGuiConfigFlags_NavEnableGamepad         = 1 << 1,  // Master gamepad navigation enable flag. This is mostly to instruct your imgui back-end to fill io.NavInputs[]. Back-end also needs to set ImGuiBackendFlags_HasGamepad.
+    ImGuiConfigFlags_NavEnableSetMousePos     = 1 << 2,  // Request navigation to allow moving the mouse cursor. May be useful on TV/console systems where moving a virtual mouse is awkward. Will update io.MousePos and set io.WantSetMousePos=true. If enabled you MUST honor io.WantSetMousePos requests in your binding, otherwise ImGui will react as if the mouse is jumping around back and forth.
+    ImGuiConfigFlags_NavNoCaptureKeyboard     = 1 << 3,  // Do not set the io.WantCaptureKeyboard flag with io.NavActive is set. 
+    ImGuiConfigFlags_NoSetMouseCursor         = 1 << 4,  // Request back-end to not alter mouse cursor configuration.
 
     // [BETA] Viewports
-    ImGuiConfigFlags_EnableViewports                    = 1 << 4,   // Viewport enable flags (require both ImGuiConfigFlags_PlatformHasViewports + ImGuiConfigFlags_RendererHasViewports set by the respective back-ends)
-    ImGuiConfigFlags_EnableDpiScaleViewports            = 1 << 5,
-    ImGuiConfigFlags_EnableDpiScaleFonts                = 1 << 6,
+    ImGuiConfigFlags_EnableViewports          = 1 << 5,  // Viewport enable flags (require both ImGuiConfigFlags_PlatformHasViewports + ImGuiConfigFlags_RendererHasViewports set by the respective back-ends)
+    ImGuiConfigFlags_EnableDpiScaleViewports  = 1 << 6,
+    ImGuiConfigFlags_EnableDpiScaleFonts      = 1 << 7,
+    ImGuiConfigFlags_NoTaskBarForViewports    = 1 << 8,
 
-    ImGuiConfigFlags_PlatformNoTaskBar                  = 1 << 10,
-    ImGuiConfigFlags_PlatformHasViewports               = 1 << 11,  // Back-end Platform supports multiple viewports
-    ImGuiConfigFlags_PlatformHasMouseHoveredViewport    = 1 << 12,  // Back-end Platform supports setting io.MouseHoveredViewport to the viewport directly under the mouse _IGNORING_ viewports with the ImGuiViewportFlags_NoInputs flag and _REGARDLESS_ of whether another viewport is focused and may be capturing the mouse. This information is _NOT EASY_ to provide correctly with most high-level engines. Don't see this without studying how the examples/ back-end handle it.
-    ImGuiConfigFlags_PlatformHasWantMoveMouseSupport    = 1 << 13,  // Back-end Platform supports io.WantMoveMouse request by updating the OS mouse cursor position (currently only used by ImGuiConfigFlags_NavMoveMouse feature, will be useful for widgets teleporting/wrapping the cursor)
-    ImGuiConfigFlags_PlatformHasWindowAlpha             = 1 << 14,  // Back-end Platform supports transparent windows
-    ImGuiConfigFlags_RendererHasViewports               = 1 << 15,  // Back-end Renderer supports multiple viewports
-    
-    // Platform Info (free of use, for user/application convenience)
-    ImGuiConfigFlags_IsSRGB                             = 1 << 20,  // Back-end is SRGB-aware (Storage flag to allow your back-end to communicate to shared widgets. Not used by core ImGui)
-    ImGuiConfigFlags_IsTouchScreen                      = 1 << 21,  // Back-end is using a touch screen instead of a mouse (Storage flag to allow your back-end to communicate to shared widgets. Not used by core ImGui)
-    ImGuiConfigFlags_IsOnScreenKeyboard                 = 1 << 22   // Back-end uses an on-screen keyboard when io.WantTextInput is set.
+    // User storage (to allow your back-end/engine to communicate to code that may be shared between multiple projects. Those flags are not used by core ImGui)
+    ImGuiConfigFlags_IsSRGB                   = 1 << 20, // Application is SRGB-aware.
+    ImGuiConfigFlags_IsTouchScreen            = 1 << 21  // Application is using a touch screen instead of a mouse.
+};
+
+// Back-end capabilities flags stored in io.BackendFlags. Set by imgui_impl_xxx or custom back-end.
+enum ImGuiBackendFlags_
+{
+    ImGuiBackendFlags_HasGamepad              = 1 << 0,  // Back-end supports and has a connected gamepad.
+    ImGuiBackendFlags_HasMouseCursors         = 1 << 1,  // Back-end supports reading GetMouseCursor() to change the OS cursor shape.
+    ImGuiBackendFlags_HasSetMousePos          = 1 << 2,  // Back-end supports io.WantSetMousePos requests to reposition the OS mouse position (only used if ImGuiConfigFlags_NavEnableSetMousePos is set).
+
+    // [BETA] Viewports
+    ImGuiBackendFlags_PlatformHasViewports    = 1 << 10, // Back-end Platform supports multiple viewports.
+    ImGuiBackendFlags_RendererHasViewports    = 1 << 11, // Back-end Renderer supports multiple viewports.
+    ImGuiBackendFlags_HasMouseHoveredViewport = 1 << 12  // Back-end Platform supports setting io.MouseHoveredViewport to the viewport directly under the mouse _IGNORING_ viewports with the ImGuiViewportFlags_NoInputs flag and _REGARDLESS_ of whether another viewport is focused and may be capturing the mouse. This information is _NOT EASY_ to provide correctly with most high-level engines! Don't set this without studying how the examples/ back-end handle it!
 };
 
 // Enumeration for PushStyleColor() / PopStyleColor()
@@ -1017,9 +1024,10 @@ struct ImGuiIO
     // Settings (fill once)                 // Default value:
     //------------------------------------------------------------------
 
+    ImGuiConfigFlags   ConfigFlags;         // = 0                  // See ImGuiConfigFlags_ enum. Set by user/application. Gamepad/keyboard navigation options, etc.
+    ImGuiBackendFlags  BackendFlags;        // = 0                  // Set ImGuiBackendFlags_ enum. Set by imgui_impl_xxx files or custom back-end.
     ImVec2        DisplaySize;              // <unset>              // Main display size. Used e.g. to clamp windows positions. This is the default viewport. Use BeginViewport() for other viewports.
     float         DeltaTime;                // = 1.0f/60.0f         // Time elapsed since last frame, in seconds.
-    ImGuiConfigFlags ConfigFlags;           // = 0                  // See ImGuiConfigFlags_ enum. Back-end options, Gamepad/keyboard navigation options, etc.
     float         IniSavingRate;            // = 5.0f               // Maximum time between saving positions/sizes to .ini file, in seconds.
     const char*   IniFilename;              // = "imgui.ini"        // Path to .ini file. NULL to disable .ini saving.
     const char*   LogFilename;              // = "imgui_log.txt"    // Path to .log file (default parameter to ImGui::LogToFile when no file is specified).
@@ -1079,7 +1087,7 @@ struct ImGuiIO
     bool        KeySuper;                       // Keyboard modifier pressed: Cmd/Super/Windows
     bool        KeysDown[512];                  // Keyboard keys that are pressed (ideally left in the "native" order your engine has access to keyboard keys, so you can use your own defines/enums for keys).
     ImWchar     InputCharacters[16+1];          // List of characters input (translated by user from keypress+keyboard state). Fill using AddInputCharacter() helper.
-    float       NavInputs[ImGuiNavInput_COUNT]; // Gamepad inputs (keyboard keys will be auto-mapped and be written here by ImGui::NewFrame)
+    float       NavInputs[ImGuiNavInput_COUNT]; // Gamepad inputs (keyboard keys will be auto-mapped and be written here by ImGui::NewFrame, all values will be cleared back to zero in ImGui::EndFrame)
 
     // Functions
     IMGUI_API void AddInputCharacter(ImWchar c);                        // Add new character into InputCharacters[]
@@ -1093,7 +1101,7 @@ struct ImGuiIO
     bool        WantCaptureMouse;           // When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application. This is set by ImGui when it wants to use your mouse (e.g. unclicked mouse is hovering a window, or a widget is active). 
     bool        WantCaptureKeyboard;        // When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application. This is set by ImGui when it wants to use your keyboard inputs.
     bool        WantTextInput;              // Mobile/console: when io.WantTextInput is true, you may display an on-screen keyboard. This is set by ImGui when it wants textual keyboard input to happen (e.g. when a InputText widget is active).
-    bool        WantMoveMouse;              // MousePos has been altered, back-end should reposition mouse on next frame. Set only when ImGuiConfigFlags_NavMoveMouse flag is enabled.
+    bool        WantSetMousePos;            // MousePos has been altered, back-end should reposition mouse on next frame. Set only when ImGuiConfigFlags_NavEnableSetMousePos flag is enabled.
     bool        NavActive;                  // Directional navigation is currently allowed (will handle ImGuiKey_NavXXX events) = a window is focused and it doesn't use the ImGuiWindowFlags_NoNavInputs flag.
     bool        NavVisible;                 // Directional navigation is visible and allowed (will handle ImGuiKey_NavXXX events).
     float       Framerate;                  // Application framerate estimation, in frame per second. Solely for convenience. Rolling average estimation based on IO.DeltaTime over 120 frames
@@ -1217,7 +1225,7 @@ public:
     inline void         pop_back()                                      { IM_ASSERT(Size > 0); Size--; }
     inline void         push_front(const value_type& v)                 { if (Size == 0) push_back(v); else insert(Data, v); }
     inline iterator     erase(const_iterator it)                        { IM_ASSERT(it >= Data && it < Data+Size); const ptrdiff_t off = it - Data; memmove(Data + off, Data + off + 1, ((size_t)Size - (size_t)off - 1) * sizeof(value_type)); Size--; return Data + off; }
-    inline iterator     insert(const_iterator it, const value_type& v)  { IM_ASSERT(it >= Data && it <= Data+Size); const ptrdiff_t off = it - Data; if (Size == Capacity) reserve(_grow_capacity(Size + 1)); if (off < (int)Size) memmove(Data + off + 1, Data + off, ((size_t)Size - (size_t)off) * sizeof(value_type)); Data[off] = v; Size++; return Data + off; }
+    inline iterator     insert(const_iterator it, const value_type& v)  { IM_ASSERT(it >= Data && it <= Data+Size); const ptrdiff_t off = it - Data; if (Size == Capacity) reserve(_grow_capacity(Size + 1)); if (off < (int)Size) memmove(Data + off + 1, Data + off, ((size_t)Size - (size_t)off) * sizeof(value_type)); memcpy(&Data[off], &v, sizeof(v)); Size++; return Data + off; }
     inline bool         contains(const value_type& v) const             { const T* data = Data;  const T* data_end = Data + Size; while (data < data_end) if (*data++ == v) return true; return false; }
 };
 
@@ -1870,6 +1878,8 @@ struct ImFont
 // This is designed so we can mix and match two imgui_impl_xxxx files, one for the Platform (~ Windowing), one for Renderer.
 // Custom engine back-ends will often provide both Platform and Renderer interfaces and thus may not need to use all functions.
 // Platform functions are typically called before their Renderer counterpart, apart from Destroy which are called the other way.
+// RenderPlatformWindows() basically iterate secondary viewports and call Platform+Renderer's RenderWindow then Platform+Renderer's SwapBuffers,
+// You may skip using RenderPlatformWindows() and call your functions yourself if you need specific behavior for your multi-window rendering.
 struct ImGuiPlatformIO
 {
     // Platform (e.g. Win32, GLFW, SDL2)
@@ -1882,8 +1892,8 @@ struct ImGuiPlatformIO
     ImVec2  (*Platform_GetWindowSize)(ImGuiViewport* vp);
     void    (*Platform_SetWindowTitle)(ImGuiViewport* vp, const char* title);
     void    (*Platform_SetWindowAlpha)(ImGuiViewport* vp, float alpha);     // (Optional) Setup window transparency
-    void    (*Platform_RenderWindow)(ImGuiViewport* vp);                    // (Optional) Setup for render (platform side)
-    void    (*Platform_SwapBuffers)(ImGuiViewport* vp);                     // (Optional) Call Present/SwapBuffers (platform side)
+    void    (*Platform_RenderWindow)(ImGuiViewport* vp, void* render_arg);  // (Optional) Setup for render (platform side)
+    void    (*Platform_SwapBuffers)(ImGuiViewport* vp, void* render_arg);   // (Optional) Call Present/SwapBuffers (platform side)
     float   (*Platform_GetWindowDpiScale)(ImGuiViewport* vp);               // (Optional) DPI handling: Return DPI scale for this viewport. 1.0f = 96 DPI. (FIXME-DPI)
     void    (*Platform_OnChangedViewport)(ImGuiViewport* vp);               // (Optional) DPI handling: Called during Begin() every time the viewport we are outputting into changes, so back-end has a chance to swap fonts to adjust style.
     int     (*Platform_CreateVkSurface)(ImGuiViewport* vp, ImU64 vk_inst, const void* vk_allocators, ImU64* out_vk_surface); // (Optional) For Renderer to call into Platform code
@@ -1892,8 +1902,8 @@ struct ImGuiPlatformIO
     void    (*Renderer_CreateWindow)(ImGuiViewport* vp);                    // Create swap chains, frame buffers etc.
     void    (*Renderer_DestroyWindow)(ImGuiViewport* vp);
     void    (*Renderer_SetWindowSize)(ImGuiViewport* vp, ImVec2 size);      // Resize swap chain, frame buffers etc.
-    void    (*Renderer_RenderWindow)(ImGuiViewport* vp);                    // (Optional) Clear targets, Render viewport->DrawData
-    void    (*Renderer_SwapBuffers)(ImGuiViewport* vp);                     // (Optional) Call Present/SwapBuffers (renderer side)
+    void    (*Renderer_RenderWindow)(ImGuiViewport* vp, void* render_arg);  // (Optional) Clear targets, Render viewport->DrawData
+    void    (*Renderer_SwapBuffers)(ImGuiViewport* vp, void* render_arg);   // (Optional) Call Present/SwapBuffers (renderer side)
 };
 
 // List of viewports to render as platform window (updated by ImGui::UpdatePlatformWindows)
