@@ -600,7 +600,7 @@
  Q: How can I use the drawing facilities without an ImGui window? (using ImDrawList API)
  A: - You can create a dummy window. Call SetNextWindowBgAlpha(0.0f), call Begin() with NoTitleBar|NoResize|NoMove|NoScrollbar|NoSavedSettings|NoInputs flags. 
       Then you can retrieve the ImDrawList* via GetWindowDrawList() and draw to it in any way you like.
-    - You can call ImGui::GetOverlayDrawList() and use this draw list to display contents over every other imgui windows.
+    - You can call ImGui::GetOverlayDrawList() and use this draw list to display contents over every other imgui windows (1 overlay per viewport).
     - You can create your own ImDrawList instance. You'll need to initialize them ImGui::GetDrawListSharedData(), or create your own ImDrawListSharedData.
 
  Q: I integrated Dear ImGui in my engine and the text or lines are blurry..
@@ -738,14 +738,14 @@ static void             UpdateMovingWindowDropViewport(ImGuiWindow* window);
 static void             UpdateManualResize(ImGuiWindow* window, const ImVec2& size_auto_fit, int* border_held, int resize_grip_count, ImU32 resize_grip_col[4]);
 static void             FocusFrontMostActiveWindow(ImGuiWindow* ignore_window);
 
-// Viewport
+// Viewports
 const ImGuiID           IMGUI_VIEWPORT_DEFAULT_ID = 0x11111111; // Using a constant instead of e.g. ImHash("ViewportDefault", 0); so it's easier to spot in the debugger. The exact value doesn't matter.
 static inline ImRect    GetViewportRect(ImGuiWindow* window) { return window->Viewport->GetRect(); }
 static inline ImVec2    ConvertViewportPosToPlatformPos(const ImVec2& imgui_pos, ImGuiViewport* viewport)    { return imgui_pos - viewport->Pos + viewport->PlatformPos; }
 static inline ImVec2    ConvertPlatformPosToViewportPos(const ImVec2& platform_pos, ImGuiViewport* viewport) { return platform_pos - viewport->PlatformPos + viewport->Pos; }
 static ImGuiViewportP*  Viewport(ImGuiWindow* window, ImGuiID id, ImGuiViewportFlags flags, const ImVec2& platform_pos, const ImVec2& size);
 static void             UpdateViewports();
-static void             UpdateWindowViewport(ImGuiWindow* window, bool window_pos_set_by_api);
+static void             UpdateSelectWindowViewport(ImGuiWindow* window);
 static void             SetCurrentViewport(ImGuiViewportP* viewport);
 static void             SetWindowViewportTranslateToPreservePlatformPos(ImGuiWindow* window, ImGuiViewportP* old_viewport, ImGuiViewportP* new_viewport);
 static void             ResizeViewportTranslateWindows(int viewport_idx_min, int viewport_idx_max, float pos_x_delta, int idx_delta, ImGuiViewport* viewport_to_erase);
@@ -2252,10 +2252,11 @@ static bool NavScoreItem(ImGuiNavMoveResult* result, ImRect cand)
     if (ImGui::IsMouseHoveringRect(cand.Min, cand.Max))
     {
         ImFormatString(buf, IM_ARRAYSIZE(buf), "dbox (%.2f,%.2f->%.4f)\ndcen (%.2f,%.2f->%.4f)\nd (%.2f,%.2f->%.4f)\nnav %c, quadrant %c", dbx, dby, dist_box, dcx, dcy, dist_center, dax, day, dist_axial, "WENS"[g.NavMoveDir], "WENS"[quadrant]);
-        g.OverlayDrawList.AddRect(curr.Min, curr.Max, IM_COL32(255, 200, 0, 100));
-        g.OverlayDrawList.AddRect(cand.Min, cand.Max, IM_COL32(255,255,0,200));
-        g.OverlayDrawList.AddRectFilled(cand.Max-ImVec2(4,4), cand.Max+ImGui::CalcTextSize(buf)+ImVec2(4,4), IM_COL32(40,0,0,150));
-        g.OverlayDrawList.AddText(g.IO.FontDefault, 13.0f, cand.Max, ~0U, buf);
+        ImDrawList* draw_list = ImGui::GetOverlayDrawList(window);
+        draw_list->AddRect(curr.Min, curr.Max, IM_COL32(255,200,0,100));
+        draw_list->AddRect(cand.Min, cand.Max, IM_COL32(255,255,0,200));
+        draw_list->AddRectFilled(cand.Max-ImVec2(4,4), cand.Max+ImGui::CalcTextSize(buf)+ImVec2(4,4), IM_COL32(40,0,0,150));
+        draw_list->AddText(g.IO.FontDefault, 13.0f, cand.Max, ~0U, buf);
     }
     else if (g.IO.KeyCtrl) // Hold to preview score in matching quadrant. Press C to rotate.
     {
@@ -2263,8 +2264,9 @@ static bool NavScoreItem(ImGuiNavMoveResult* result, ImRect cand)
         if (quadrant == g.NavMoveDir)
         {
             ImFormatString(buf, IM_ARRAYSIZE(buf), "%.0f/%.0f", dist_box, dist_center);
-            g.OverlayDrawList.AddRectFilled(cand.Min, cand.Max, IM_COL32(255, 0, 0, 200));
-            g.OverlayDrawList.AddText(g.IO.FontDefault, 13.0f, cand.Min, IM_COL32(255, 255, 255, 255), buf);
+            ImDrawList* draw_list = ImGui::GetOverlayDrawList(window);
+            draw_list->AddRectFilled(cand.Min, cand.Max, IM_COL32(255, 0, 0, 200));
+            draw_list->AddText(g.IO.FontDefault, 13.0f, cand.Min, IM_COL32(255, 255, 255, 255), buf);
         }
     }
  #endif
@@ -2345,7 +2347,9 @@ static void NavRestoreLayer(int layer)
 static inline void NavUpdateAnyRequestFlag()
 {
     ImGuiContext& g = *GImGui;
-    g.NavAnyRequest = g.NavMoveRequest || g.NavInitRequest || IMGUI_DEBUG_NAV_SCORING;
+    g.NavAnyRequest = g.NavMoveRequest || g.NavInitRequest || (IMGUI_DEBUG_NAV_SCORING && g.NavWindow != NULL);
+    if (g.NavAnyRequest)
+        IM_ASSERT(g.NavWindow != NULL);
 }
 
 static bool NavMoveRequestButNoResultYet()
@@ -2696,9 +2700,17 @@ int ImGui::GetFrameCount()
     return GImGui->FrameCount;
 }
 
+ImDrawList* ImGui::GetOverlayDrawList(ImGuiWindow* window)
+{
+    IM_ASSERT(window && window->Viewport);
+    return window->Viewport->OverlayDrawList;
+}
+
 ImDrawList* ImGui::GetOverlayDrawList()
 {
-    return &GImGui->OverlayDrawList;
+    ImGuiWindow* window = GImGui->CurrentWindow;
+    IM_ASSERT(window && window->Viewport);
+    return window->Viewport->OverlayDrawList;
 }
 
 ImDrawListSharedData* ImGui::GetDrawListSharedData()
@@ -2951,7 +2963,7 @@ static void NavScrollToBringItemIntoView(ImGuiWindow* window, ImRect& item_rect_
 {
     // Scroll to keep newly navigated item fully into view
     ImRect window_rect_rel(window->InnerRect.Min - window->Pos - ImVec2(1, 1), window->InnerRect.Max - window->Pos + ImVec2(1, 1));
-    //g.OverlayDrawList.AddRect(window->Pos + window_rect_rel.Min, window->Pos + window_rect_rel.Max, IM_COL32_WHITE); // [DEBUG]
+    //GetOverlayDrawList(window)->AddRect(window->Pos + window_rect_rel.Min, window->Pos + window_rect_rel.Max, IM_COL32_WHITE); // [DEBUG]
     if (window_rect_rel.Contains(item_rect_rel))
         return;
 
@@ -3252,8 +3264,8 @@ static void ImGui::NavUpdate()
     //g.OverlayDrawList.AddRect(g.NavScoringRectScreen.Min, g.NavScoringRectScreen.Max, IM_COL32(255,200,0,255)); // [DEBUG]
     g.NavScoringCount = 0;
 #if IMGUI_DEBUG_NAV_RECTS
-    if (g.NavWindow) { for (int layer = 0; layer < 2; layer++) g.OverlayDrawList.AddRect(g.NavWindow->Pos + g.NavWindow->NavRectRel[layer].Min, g.NavWindow->Pos + g.NavWindow->NavRectRel[layer].Max, IM_COL32(255,200,0,255)); } // [DEBUG] 
-    if (g.NavWindow) { ImU32 col = (g.NavWindow->HiddenFrames <= 0) ? IM_COL32(255,0,255,255) : IM_COL32(255,0,0,255); ImVec2 p = NavCalcPreferredMousePos(); char buf[32]; ImFormatString(buf, 32, "%d", g.NavLayer); g.OverlayDrawList.AddCircleFilled(p, 3.0f, col); g.OverlayDrawList.AddText(NULL, 13.0f, p + ImVec2(8,-4), col, buf); }
+    if (g.NavWindow) { for (int layer = 0; layer < 2; layer++) GetOverlayDrawList(g.NavWindow)->AddRect(g.NavWindow->Pos + g.NavWindow->NavRectRel[layer].Min, g.NavWindow->Pos + g.NavWindow->NavRectRel[layer].Max, IM_COL32(255,200,0,255)); } // [DEBUG] 
+    if (g.NavWindow) { ImU32 col = (g.NavWindow->HiddenFrames <= 0) ? IM_COL32(255,0,255,255) : IM_COL32(255,0,0,255); ImVec2 p = NavCalcPreferredMousePos(); char buf[32]; ImFormatString(buf, 32, "%d", g.NavLayer); GetOverlayDrawList(g.NavWindow)->AddCircleFilled(p, 3.0f, col); GetOverlayDrawList(g.NavWindow)->AddText(NULL, 13.0f, p + ImVec2(8,-4), col, buf); }
 #endif
 }
 
@@ -3597,6 +3609,15 @@ void ImGui::RenderPlatformWindows(void* platform_render_arg, void* renderer_rend
     }
 }
 
+static void SetupOverlayDrawList(ImDrawList* draw_list, ImGuiViewport* viewport)
+{
+    ImGuiContext& g = *GImGui;
+    draw_list->Clear();
+    draw_list->PushTextureID(g.IO.Fonts->TexID);
+    draw_list->PushClipRect(viewport->Pos, viewport->Pos + viewport->Size, false);
+    draw_list->Flags = (g.Style.AntiAliasedLines ? ImDrawListFlags_AntiAliasedLines : 0) | (g.Style.AntiAliasedFill ? ImDrawListFlags_AntiAliasedFill : 0);
+}
+
 void ImGui::NewFrame()
 {
     IM_ASSERT(GImGui != NULL && "No current context. Did you call ImGui::CreateContext() or ImGui::SetCurrentContext()?");
@@ -3664,16 +3685,13 @@ void ImGui::NewFrame()
     g.DrawListSharedData.ClipRectFullscreen = ImVec4(0.0f, 0.0f, virtual_space_max.x, virtual_space_max.y);
     g.DrawListSharedData.CurveTessellationTol = g.Style.CurveTessellationTol;
 
-    g.OverlayDrawList.Clear();
-    g.OverlayDrawList.PushTextureID(g.IO.Fonts->TexID);
-    g.OverlayDrawList.PushClipRectFullScreen();
-    g.OverlayDrawList.Flags = (g.Style.AntiAliasedLines ? ImDrawListFlags_AntiAliasedLines : 0) | (g.Style.AntiAliasedFill ? ImDrawListFlags_AntiAliasedFill : 0);
-
-    // Mark rendering data as invalid to prevent user who may have a handle on it to use it
+    // Mark rendering data as invalid to prevent user who may have a handle on it to use it. Setup Overlay draw list for the viewport.
     for (int n = 0; n < g.Viewports.Size; n++)
     {
-        g.Viewports[n]->DrawData = NULL;
-        g.Viewports[n]->DrawDataP.Clear();
+        ImGuiViewportP* viewport = g.Viewports[n];
+        viewport->DrawData = NULL;
+        viewport->DrawDataP.Clear();
+        SetupOverlayDrawList(viewport->OverlayDrawList, viewport);
     }
 
     // Clear reference to active widget if the widget isn't alive anymore
@@ -3989,7 +4007,7 @@ void ImGui::Initialize(ImGuiContext* context)
     g.SettingsHandlers.push_front(ini_handler);
 
     // Create default viewport
-    ImGuiViewportP* viewport = IM_NEW(ImGuiViewportP)();
+    ImGuiViewportP* viewport = IM_NEW(ImGuiViewportP)(&g.DrawListSharedData);
     viewport->ID = IMGUI_VIEWPORT_DEFAULT_ID;
     viewport->Idx = 0;
     g.Viewports.push_back(viewport);
@@ -4053,7 +4071,6 @@ void ImGui::Shutdown(ImGuiContext* context)
     for (int i = 0; i < g.Viewports.Size; i++)
         IM_DELETE(g.Viewports[i]);
     g.Viewports.clear();
-    g.OverlayDrawList.ClearFreeMemory();
     g.PrivateClipboard.clear();
     g.InputTextState.Text.clear();
     g.InputTextState.InitialText.clear();
@@ -4489,17 +4506,25 @@ void ImGui::Render()
     ImVec2 offset, size, uv[4];
     if (g.IO.MouseDrawCursor && g.IO.Fonts->GetMouseCursorTexData(g.MouseCursor, &offset, &size, &uv[0], &uv[2]))
     {
-        const ImVec2 pos = g.IO.MousePos - offset;
+        // We need to account for the possibility of the mouse cursor straddling multiple viewports...
+        const ImVec2 main_pos = g.IO.MousePos - offset;
         const ImTextureID tex_id = g.IO.Fonts->TexID;
         const float sc = g.Style.MouseCursorScale;
-        g.OverlayDrawList.PushClipRect(g.MousePosViewport->Pos, g.MousePosViewport->Pos + g.MousePosViewport->Size);
-        g.OverlayDrawList.PushTextureID(tex_id);
-        g.OverlayDrawList.AddImage(tex_id, pos + ImVec2(1,0)*sc, pos+ImVec2(1,0)*sc + size*sc, uv[2], uv[3], IM_COL32(0,0,0,48));        // Shadow
-        g.OverlayDrawList.AddImage(tex_id, pos + ImVec2(2,0)*sc, pos+ImVec2(2,0)*sc + size*sc, uv[2], uv[3], IM_COL32(0,0,0,48));        // Shadow
-        g.OverlayDrawList.AddImage(tex_id, pos,                  pos + size*sc,                uv[2], uv[3], IM_COL32(0,0,0,255));       // Black border
-        g.OverlayDrawList.AddImage(tex_id, pos,                  pos + size*sc,                uv[0], uv[1], IM_COL32(255,255,255,255)); // White fill
-        g.OverlayDrawList.PopTextureID();
-        g.OverlayDrawList.PopClipRect();
+        for (int viewport_n = 0; viewport_n < g.Viewports.Size; viewport_n++)
+        {
+            ImGuiViewportP* viewport = g.Viewports[viewport_n];
+            ImVec2 pos = (g.MousePosViewport == viewport) ? main_pos : ConvertPlatformPosToViewportPos(ConvertViewportPosToPlatformPos(main_pos, g.MousePosViewport), viewport);
+            if (viewport->GetRect().Overlaps(ImRect(pos, pos + ImVec2(2,2)*sc + size * sc)))
+            {
+                ImDrawList* draw_list = viewport->OverlayDrawList;
+                draw_list->PushTextureID(tex_id);
+                draw_list->AddImage(tex_id, pos+ImVec2(1,0)*sc, pos+ImVec2(1,0)*sc + size*sc, uv[2], uv[3], IM_COL32(0,0,0,48));        // Shadow
+                draw_list->AddImage(tex_id, pos+ImVec2(2,0)*sc, pos+ImVec2(2,0)*sc + size*sc, uv[2], uv[3], IM_COL32(0,0,0,48));        // Shadow
+                draw_list->AddImage(tex_id, pos,                pos + size*sc,                uv[2], uv[3], IM_COL32(0,0,0,255));       // Black border
+                draw_list->AddImage(tex_id, pos,                pos + size*sc,                uv[0], uv[1], IM_COL32(255,255,255,255)); // White fill
+                draw_list->PopTextureID();
+            }
+        }
     }
 
     // Setup ImDrawData structures for end-user
@@ -4508,7 +4533,7 @@ void ImGui::Render()
     {
         ImGuiViewportP* viewport = g.Viewports[n];
         viewport->DrawDataBuilder.FlattenIntoSingleLayer();
-        AddDrawListToDrawData(&viewport->DrawDataBuilder.Layers[0], &g.OverlayDrawList);
+        AddDrawListToDrawData(&viewport->DrawDataBuilder.Layers[0], viewport->OverlayDrawList);
         SetupViewportDrawData(viewport, &viewport->DrawDataBuilder.Layers[0]);
         g.IO.MetricsRenderVertices += viewport->DrawData->TotalVtxCount;
         g.IO.MetricsRenderIndices += viewport->DrawData->TotalIdxCount;
@@ -4611,12 +4636,19 @@ ImGuiViewportP* ImGui::Viewport(ImGuiWindow* window, ImGuiID id, ImGuiViewportFl
     else
     {
         // New viewport
-        viewport = IM_NEW(ImGuiViewportP)();
+        viewport = IM_NEW(ImGuiViewportP)(&g.DrawListSharedData);
         viewport->ID = id;
         viewport->Idx = g.Viewports.Size;
         viewport->Pos = ImVec2(g.Viewports.back()->GetNextX(), 0.0f);
         viewport->Size = size;
         g.Viewports.push_back(viewport);
+        
+        // We normally setup for all viewports in NewFrame() but here need to handle the mid-frame creation of a new viewport.
+        // 1. We need to extend the fullscreen clip rect so the OverlayDrawList clip is correct for that the first frame
+        // 2. Our ImDrawList system requires that there is always a command, SetupOverlayDrawList() effectively does that by setting up texture and clip rect
+        g.DrawListSharedData.ClipRectFullscreen.z = ImMax(g.DrawListSharedData.ClipRectFullscreen.z, viewport->Pos.x + viewport->Size.x);
+        g.DrawListSharedData.ClipRectFullscreen.w = ImMax(g.DrawListSharedData.ClipRectFullscreen.w, viewport->Pos.y + viewport->Size.y);
+        SetupOverlayDrawList(viewport->OverlayDrawList, viewport);
     }
 
     IM_ASSERT(viewport->Pos.y == 0.0f);
@@ -5995,11 +6027,10 @@ static void ImGui::SetWindowViewportTranslateToPreservePlatformPos(ImGuiWindow* 
 }
 
 // FIXME-VIEWPORT: This is all super messy and ought to be clarified or rewritten.
-static void ImGui::UpdateWindowViewport(ImGuiWindow* window, bool window_pos_set_by_api)
+static void ImGui::UpdateSelectWindowViewport(ImGuiWindow* window)
 {
     ImGuiContext& g = *GImGui;
     ImGuiWindowFlags flags = window->Flags;
-    (void)window_pos_set_by_api;
 
     // Restore main viewport if multi-viewport is not supported by the back-end
     ImGuiViewportP* main_viewport = g.Viewports[0];
@@ -6019,29 +6050,24 @@ static void ImGui::UpdateWindowViewport(ImGuiWindow* window, bool window_pos_set
     {
         // Code explicitly request a viewport
         window->Viewport = FindViewportByID(g.NextWindowData.ViewportId);
-        window->ViewportId = g.NextWindowData.ViewportId; // Store ID even if Viewport isn't resolved.
+        window->ViewportId = g.NextWindowData.ViewportId; // Store ID even if Viewport isn't resolved yet.
     }
     else if (flags & ImGuiWindowFlags_ChildWindow)
     {
-        IM_ASSERT(window->ParentWindow);
         window->Viewport = window->ParentWindow->Viewport;
     }
     else if (window_follow_mouse_viewport && IsMousePosValid())
     {
-        // Calculate mouse position in OS/platform coordinates
         ImGuiViewportP* current_viewport = window->Viewport;
         if (!window_is_mouse_tooltip && !current_viewport->GetRect().Contains(window->Rect()))
         {
-            // Create an undecorated, temporary OS/platform window
+            // Calculate mouse position in OS/platform coordinates, create a Viewport at this position.
             ImVec2 platform_pos = ConvertViewportPosToPlatformPos(g.IO.MousePos - g.ActiveIdClickOffset, g.MousePosViewport);
             ImGuiViewportFlags viewport_flags = ImGuiViewportFlags_NoDecoration | ImGuiViewportFlags_NoFocusOnAppearing | ImGuiViewportFlags_NoInputs;
             ImGuiViewportP* viewport = Viewport(window, window->ID, viewport_flags, platform_pos, window->Size);
             window->Flags |= ImGuiWindowFlags_FullViewport;
             window->Viewport = viewport;
             created_viewport = true;
-
-            // Preserve relative mouse position so docking title bar test stays valid mid-frame (since it isn't latched)
-            g.IO.MousePos = g.IO.MousePosPrev = window->Viewport->Pos + g.ActiveIdClickOffset;
         }
         else
         {
@@ -6399,7 +6425,7 @@ bool ImGui::Begin(const char* name, bool* p_open, ImGuiWindowFlags flags)
         // VIEWPORT
         // We need to do this before using any style/font sizes, as viewport with a different DPI will affect those sizes.
 
-        UpdateWindowViewport(window, window_pos_set_by_api);
+        UpdateSelectWindowViewport(window);
         SetCurrentViewport(window->Viewport);
         window->FontDpiScale = (g.IO.ConfigFlags & ImGuiConfigFlags_EnableDpiScaleFonts) ? window->Viewport->DpiScale : 1.0f;
         SetCurrentWindow(window);
@@ -6631,7 +6657,7 @@ bool ImGui::Begin(const char* name, bool* p_open, ImGuiWindowFlags flags)
             window->DrawList->AddRectFilled(viewport_rect.Min, viewport_rect.Max, GetColorU32(ImGuiCol_ModalWindowDarkening, g.ModalWindowDarkeningRatio));
             for (int viewport_n = 0; viewport_n < g.Viewports.Size; viewport_n++)
                 if (g.Viewports[viewport_n] != window->Viewport)
-                    g.OverlayDrawList.AddRectFilled(g.Viewports[viewport_n]->Pos, g.Viewports[viewport_n]->Pos + g.Viewports[viewport_n]->Size, GetColorU32(ImGuiCol_ModalWindowDarkening, g.ModalWindowDarkeningRatio));
+                    g.Viewports[viewport_n]->OverlayDrawList->AddRectFilled(g.Viewports[viewport_n]->Pos, g.Viewports[viewport_n]->Pos + g.Viewports[viewport_n]->Size, GetColorU32(ImGuiCol_ModalWindowDarkening, g.ModalWindowDarkeningRatio));
         }
 
         // Draw navigation selection/windowing rectangle background
@@ -13958,7 +13984,7 @@ void ImGui::ShowMetricsWindow(bool* p_open)
 
         struct Funcs
         {
-            static void NodeDrawList(ImGuiWindow* window, ImDrawList* draw_list, const char* label)
+            static void NodeDrawList(ImGuiWindow* window, ImGuiViewportP* viewport, ImDrawList* draw_list, const char* label)
             {
                 bool node_open = ImGui::TreeNode(draw_list, "%s: '%s' %d vtx, %d indices, %d cmds", label, draw_list->_OwnerName ? draw_list->_OwnerName : "", draw_list->VtxBuffer.Size, draw_list->IdxBuffer.Size, draw_list->CmdBuffer.Size);
                 if (draw_list == ImGui::GetWindowDrawList())
@@ -13969,7 +13995,7 @@ void ImGui::ShowMetricsWindow(bool* p_open)
                     return;
                 }
 
-                ImDrawList* overlay_draw_list = ImGui::GetOverlayDrawList(); // Render additional visuals into the top-most draw list
+                ImDrawList* overlay_draw_list = viewport->OverlayDrawList; // Render additional visuals into the top-most draw list
                 if (window && ImGui::IsItemHovered())
                     overlay_draw_list->AddRect(window->Pos, window->Pos + window->Size, IM_COL32(255, 255, 0, 255));
                 if (!node_open)
@@ -14041,7 +14067,7 @@ void ImGui::ShowMetricsWindow(bool* p_open)
                 if (!ImGui::TreeNode(window, "%s '%s', %d @ 0x%p", label, window->Name, window->Active || window->WasActive, window))
                     return;
                 ImGuiWindowFlags flags = window->Flags;
-                NodeDrawList(window, window->DrawList, "DrawList");
+                NodeDrawList(window, window->Viewport, window->DrawList, "DrawList");
                 ImGui::BulletText("Pos: (%.1f,%.1f), Size: (%.1f,%.1f), SizeContents (%.1f,%.1f)", window->Pos.x, window->Pos.y, window->Size.x, window->Size.y, window->SizeContents.x, window->SizeContents.y);
                 ImGui::BulletText("Flags: 0x%08X (%s%s%s%s%s%s..)", flags, 
                     (flags & ImGuiWindowFlags_ChildWindow) ? "Child " : "", (flags & ImGuiWindowFlags_Tooltip)   ? "Tooltip "   : "", (flags & ImGuiWindowFlags_Popup) ? "Popup " : "",
@@ -14101,7 +14127,7 @@ void ImGui::ShowMetricsWindow(bool* p_open)
                         (flags & ImGuiViewportFlags_NoRendererClear)     ? " NoRendererClear"     : "");
                     for (int layer_i = 0; layer_i < IM_ARRAYSIZE(viewport->DrawDataBuilder.Layers); layer_i++)
                         for (int draw_list_i = 0; draw_list_i < viewport->DrawDataBuilder.Layers[layer_i].Size; draw_list_i++)
-                            Funcs::NodeDrawList(NULL, viewport->DrawDataBuilder.Layers[layer_i][draw_list_i], "DrawList");
+                            Funcs::NodeDrawList(NULL, viewport, viewport->DrawDataBuilder.Layers[layer_i][draw_list_i], "DrawList");
                     ImGui::TreePop();
                 }
             }
@@ -14124,6 +14150,7 @@ void ImGui::ShowMetricsWindow(bool* p_open)
             ImGui::Text("HoveredId: 0x%08X/0x%08X (%.2f sec)", g.HoveredId, g.HoveredIdPreviousFrame, g.HoveredIdTimer); // Data is "in-flight" so depending on when the Metrics window is called we may see current frame information or not
             ImGui::Text("ActiveId: 0x%08X/0x%08X (%.2f sec), ActiveIdSource: %s", g.ActiveId, g.ActiveIdPreviousFrame, g.ActiveIdTimer, input_source_names[g.ActiveIdSource]);
             ImGui::Text("ActiveIdWindow: '%s'", g.ActiveIdWindow ? g.ActiveIdWindow->Name : "NULL");
+            ImGui::Text("MovingWindow: '%s'", g.MovingWindow ? g.MovingWindow->Name : "NULL");
             ImGui::Text("NavWindow: '%s'", g.NavWindow ? g.NavWindow->Name : "NULL");
             ImGui::Text("NavId: 0x%08X, NavLayer: %d", g.NavId, g.NavLayer);
             ImGui::Text("NavInputSource: %s", input_source_names[g.NavInputSource]);
@@ -14143,8 +14170,8 @@ void ImGui::ShowMetricsWindow(bool* p_open)
                 char buf[32];
                 ImFormatString(buf, IM_ARRAYSIZE(buf), "%d", window->BeginOrderWithinContext);
                 float font_size = ImGui::GetFontSize() * 2;
-                g.OverlayDrawList.AddRectFilled(window->Pos, window->Pos + ImVec2(font_size, font_size), IM_COL32(200, 100, 100, 255));
-                g.OverlayDrawList.AddText(NULL, font_size, window->Pos, IM_COL32(255, 255, 255, 255), buf);
+                window->Viewport->OverlayDrawList->AddRectFilled(window->PosFloat, window->PosFloat + ImVec2(font_size, font_size), IM_COL32(200, 100, 100, 255));
+                window->Viewport->OverlayDrawList->AddText(NULL, font_size, window->PosFloat, IM_COL32(255, 255, 255, 255), buf);
             }
         }
     }
