@@ -605,10 +605,10 @@ bool ImGui_ImplDX12_Init(ID3D12Device* device, int num_frames_in_flight, DXGI_FO
     }
 
     // Setup back-end capabilities flags
-    // FIXME-VIEWPORT: Actually unfinshed..
+    // FIXME-VIEWPORT: Actually unfinished..
     ImGuiIO& io = ImGui::GetIO();
     io.BackendFlags |= ImGuiBackendFlags_RendererHasViewports;    // We can create multi-viewports on the Renderer side (optional)
-    if (io.ConfigFlags & ImGuiConfigFlags_EnableViewports)
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
         ImGui_ImplDX12_InitPlatformInterface();
 
     return true;
@@ -690,6 +690,7 @@ static void ImGui_ImplDX12_CreateWindow(ImGuiViewport* viewport)
 
 static void ImGui_ImplDX12_DestroyWindow(ImGuiViewport* viewport)
 {
+    // The main viewport (owned by the application) will always have RendererUserData == NULL since we didn't create the data for it.
     if (ImGuiViewportDataDx12* data = (ImGuiViewportDataDx12*)viewport->RendererUserData)
     {
         IM_ASSERT(0);

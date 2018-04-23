@@ -3,7 +3,7 @@
 // (Info: SDL2 is a cross-platform general purpose library for handling windows, inputs, graphics context creation, etc.)
 
 // Implemented features:
-//  [X] Multi-viewport windows (when ImGuiConfigFlags_EnableViewports is enabled).
+//  [X] Multi-viewport windows (when ImGuiConfigFlags_ViewportsEnable is enabled).
 
 // You can copy and use unmodified imgui_impl_* files in your project. See main.cpp for an example of using this.
 // If you use this binding you'll need to call 4 functions: ImGui_ImplXXXX_Init(), ImGui_ImplXXXX_NewFrame(), ImGui::Render() and ImGui_ImplXXXX_Shutdown().
@@ -14,7 +14,7 @@
 // (minor and older changes stripped away, please see git history for details)
 //  2018-XX-XX: Platform: Added support for multiple windows via the ImGuiPlatformIO interface.
 //  2018-XX-XX: Misc: ImGui_ImplSDL2_Init() now takes a SDL_GLContext parameter. 
-//  2018-03-20: Misc: Setup io.BackendFlags ImGuiBackendFlags_HasMouseCursors flag + honor ImGuiConfigFlags_NoSetMouseCursor flag.
+//  2018-03-20: Misc: Setup io.BackendFlags ImGuiBackendFlags_HasMouseCursors flag + honor ImGuiConfigFlags_NoMouseCursorChange flag.
 //  2018-02-16: Inputs: Added support for mouse cursors, honoring ImGui::GetMouseCursor() value.
 //  2018-02-06: Misc: Removed call to ImGui::Shutdown() which is not available from 1.60 WIP, user needs to call CreateContext/DestroyContext themselves.
 //  2018-02-06: Inputs: Added mapping for ImGuiKey_Space.
@@ -30,11 +30,16 @@
 #include "imgui_impl_sdl2.h"
 
 // SDL
+// (the multi-viewports feature requires SDL features supported from SDL 2.0.5+)
 #include <SDL.h>
 #include <SDL_syswm.h>
-#define SDL_HAS_CAPTURE_MOUSE   SDL_VERSION_ATLEAST(2,0,4)
-#define SDL_HAS_WINDOW_OPACITY  SDL_VERSION_ATLEAST(2,0,5)
-#define SDL_HAS_VULKAN          SDL_VERSION_ATLEAST(2,0,6)
+#define SDL_HAS_CAPTURE_MOUSE               SDL_VERSION_ATLEAST(2,0,4)
+#define SDL_HAS_WINDOW_OPACITY              SDL_VERSION_ATLEAST(2,0,5)
+#define SDL_HAS_ALWAYS_ON_TOP               SDL_VERSION_ATLEAST(2,0,5)
+#define SDL_HAS_USABLE_DISPLAY_BOUNDS       SDL_VERSION_ATLEAST(2,0,5)
+#define SDL_HAS_PER_MONITOR_DPI             SDL_VERSION_ATLEAST(2,0,4)
+#define SDL_HAS_VULKAN                      SDL_VERSION_ATLEAST(2,0,6)
+#define SDL_HAS_MOUSE_FOCUS_CLICKTHROUGH    SDL_VERSION_ATLEAST(2,0,5)
 #if !SDL_HAS_VULKAN
 static const Uint32 SDL_WINDOW_VULKAN = 0x10000000;
 #endif
@@ -130,7 +135,7 @@ bool    ImGui_ImplSDL2_Init(SDL_Window* window, void* sdl_gl_context)
     io.BackendFlags |= ImGuiBackendFlags_PlatformHasViewports;  // We can create multi-viewports on the Platform side (optional)
 #endif
 
-    // Keyboard mapping. ImGui will use those indices to peek into the io.KeyDown[] array.
+    // Keyboard mapping. ImGui will use those indices to peek into the io.KeysDown[] array.
     io.KeyMap[ImGuiKey_Tab] = SDL_SCANCODE_TAB;
     io.KeyMap[ImGuiKey_LeftArrow] = SDL_SCANCODE_LEFT;
     io.KeyMap[ImGuiKey_RightArrow] = SDL_SCANCODE_RIGHT;
@@ -178,7 +183,7 @@ bool    ImGui_ImplSDL2_Init(SDL_Window* window, void* sdl_gl_context)
 
     // We need SDL_CaptureMouse(), SDL_GetGlobalMouseState() from SDL 2.0.4+ to support multiple viewports.
     // We left the call to ImGui_ImplSDL2_InitPlatformInterface() outside of #ifdef to avoid unused-function warnings.
-    if ((io.ConfigFlags & ImGuiConfigFlags_EnableViewports) && (io.BackendFlags & ImGuiBackendFlags_PlatformHasViewports))
+    if ((io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) && (io.BackendFlags & ImGuiBackendFlags_PlatformHasViewports))
         ImGui_ImplSDL2_InitPlatformInterface(window, sdl_gl_context);
 
     return true;
@@ -227,7 +232,7 @@ static void ImGui_ImplSDL2_UpdateMouse()
         io.MousePosViewport = viewport->ID;
     }
 
-    // We already retrieve global mouse position, SDL_CaptureMouse() also let the OS know our drag outside boundaries shouldn't trigger, e.g.: OS window resize cursor
+    // We already retrieve global mouse position, SDL_CaptureMouse() also let the OS know e.g. that our imgui drag outside the SDL window boundaries shouldn't trigger the OS window resize cursor
     // The function is only supported from SDL 2.0.4 (released Jan 2016)
     bool any_mouse_button_down = ImGui::IsAnyMouseDown();
     SDL_CaptureMouse(any_mouse_button_down ? SDL_TRUE : SDL_FALSE);
@@ -237,7 +242,7 @@ static void ImGui_ImplSDL2_UpdateMouse()
 #endif
 
     // Update OS/hardware mouse cursor if imgui isn't drawing a software cursor
-    if ((io.ConfigFlags & ImGuiConfigFlags_NoSetMouseCursor) == 0)
+    if ((io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange) == 0)
     {
         ImGuiMouseCursor cursor = ImGui::GetMouseCursor();
         if (io.MouseDrawCursor || cursor == ImGuiMouseCursor_None)
@@ -285,9 +290,10 @@ struct ImGuiViewportDataSDL2
 {
     SDL_Window*     Window;
     Uint32          WindowID;
+    bool            WindowOwned;
     SDL_GLContext   GLContext;
 
-    ImGuiViewportDataSDL2() { Window = NULL; WindowID = 0; GLContext = NULL; }
+    ImGuiViewportDataSDL2() { Window = NULL; WindowID = 0; WindowOwned = false; GLContext = NULL; }
     ~ImGuiViewportDataSDL2() { IM_ASSERT(Window == NULL && GLContext == NULL); }
 };
 
@@ -296,11 +302,10 @@ static void ImGui_ImplSDL2_CreateWindow(ImGuiViewport* viewport)
     ImGuiViewportDataSDL2* data = IM_NEW(ImGuiViewportDataSDL2)();
     viewport->PlatformUserData = data;
 
-    // Share GL resources with main context
-    // FIXME-PLATFORM
     ImGuiViewport* main_viewport = ImGui::GetMainViewport();
     ImGuiViewportDataSDL2* main_viewport_data = (ImGuiViewportDataSDL2*)main_viewport->PlatformUserData;
 
+    // Share GL resources with main context
     bool use_opengl = (main_viewport_data->GLContext != NULL);
     SDL_GLContext backup_context = NULL;
     if (use_opengl)
@@ -316,8 +321,11 @@ static void ImGui_ImplSDL2_CreateWindow(ImGuiViewport* viewport)
     sdl_flags |= SDL_WINDOW_HIDDEN;
     sdl_flags |= (viewport->Flags & ImGuiViewportFlags_NoDecoration) ? SDL_WINDOW_BORDERLESS : 0;
     sdl_flags |= (viewport->Flags & ImGuiViewportFlags_NoDecoration) ? 0 : SDL_WINDOW_RESIZABLE;
-    data->Window = SDL_CreateWindow("No Title Yet", 
-        (int)viewport->PlatformPos.x, (int)viewport->PlatformPos.y, (int)viewport->Size.x, (int)viewport->Size.y, sdl_flags);
+#if SDL_HAS_ALWAYS_ON_TOP
+    sdl_flags |= (viewport->Flags & imGuiViewportFlags_TopMost) ? SDL_WINDOW_ALWAYS_ON_TOP : 0;
+#endif
+    data->Window = SDL_CreateWindow("No Title Yet", (int)viewport->Pos.x, (int)viewport->Pos.y, (int)viewport->Size.x, (int)viewport->Size.y, sdl_flags);
+    data->WindowOwned = true; 
     if (use_opengl)
         data->GLContext = SDL_GL_CreateContext(data->Window);
     if (use_opengl && backup_context)
@@ -329,11 +337,11 @@ static void ImGui_ImplSDL2_DestroyWindow(ImGuiViewport* viewport)
 {
     if (ImGuiViewportDataSDL2* data = (ImGuiViewportDataSDL2*)viewport->PlatformUserData)
     {
-        if (data->GLContext)
+        if (data->GLContext && data->WindowOwned)
             SDL_GL_DeleteContext(data->GLContext);
-        data->GLContext = NULL;
-        if (data->Window)
+        if (data->Window && data->WindowOwned)
             SDL_DestroyWindow(data->Window);
+        data->GLContext = NULL;
         data->Window = NULL;
         IM_DELETE(data);
     }
@@ -352,8 +360,7 @@ static void ImGui_ImplSDL2_ShowWindow(ImGuiViewport* viewport)
 
         // SDL hack: Hide icon from task bar
         // Note: SDL 2.0.6+ has a SDL_WINDOW_SKIP_TASKBAR flag which is supported under Windows but the way it create the window breaks our seamless transition.
-        ImGuiIO& io = ImGui::GetIO();
-        if (io.ConfigFlags & ImGuiConfigFlags_NoTaskBarForViewports)
+        if (viewport->Flags & ImGuiViewportFlags_NoTaskBarIcon)
         {
             LONG ex_style = ::GetWindowLong(hwnd, GWL_EXSTYLE);
             ex_style &= ~WS_EX_APPWINDOW;
@@ -437,6 +444,34 @@ static int ImGui_ImplSDL2_CreateVkSurface(ImGuiViewport* viewport, ImU64 vk_inst
 }
 #endif // SDL_HAS_VULKAN
 
+// FIXME-PLATFORM: Update monitor list when changed?
+static void ImGui_ImplSDL2_UpdateMonitors()
+{
+    ImGuiPlatformIO& platform_io = ImGui::GetPlatformIO();
+    platform_io.Monitors.resize(0);
+    int display_count = SDL_GetNumVideoDisplays();
+    for (int n = 0; n < display_count; n++)
+    {
+        // Warning: the validity of monitor DPI information on Windows depends on the application DPI awareness settings, which generally needs to be set in the manifest or at runtime.
+        ImGuiPlatformMonitor monitor;
+        SDL_Rect r;
+        SDL_GetDisplayBounds(n, &r);
+        monitor.FullMin = monitor.WorkMin = ImVec2((float)(r.x), (float)(r.y));
+        monitor.FullMax = monitor.WorkMax = ImVec2((float)(r.x + r.w), (float)(r.y + r.h));
+#if SDL_HAS_USABLE_DISPLAY_BOUNDS
+        SDL_GetDisplayUsableBounds(n, &r);
+        monitor.WorkMin = ImVec2((float)(r.x), (float)(r.y));
+        monitor.WorkMax = ImVec2((float)(r.x + r.w), (float)(r.y + r.h));
+#endif
+#if SDL_HAS_PER_MONITOR_DPI
+        float dpi = 0.0f;
+        if (SDL_GetDisplayDPI(n, &dpi, NULL, NULL))
+            monitor.DpiScale = dpi / 96.0f;
+#endif
+        platform_io.Monitors.push_back(monitor);
+    }
+}
+
 static void ImGui_ImplSDL2_InitPlatformInterface(SDL_Window* window, void* sdl_gl_context)
 {
     // Register platform interface (will be coupled with a renderer interface)
@@ -455,11 +490,19 @@ static void ImGui_ImplSDL2_InitPlatformInterface(SDL_Window* window, void* sdl_g
     platform_io.Platform_CreateVkSurface = ImGui_ImplSDL2_CreateVkSurface;
 #endif
 
-    // Register main window handle
+    // SDL2 by default doesn't pass mouse clicks to the application when the click focused a window. This is getting in the way of our interactions and we disable that behavior.
+#if SDL_HAS_MOUSE_FOCUS_CLICKTHROUGH
+    SDL_SetHint(SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH, "1");
+#endif
+
+    ImGui_ImplSDL2_UpdateMonitors();
+
+    // Register main window handle (which is owned by the main application, not by us)
     ImGuiViewport* main_viewport = ImGui::GetMainViewport();
     ImGuiViewportDataSDL2* data = IM_NEW(ImGuiViewportDataSDL2)();
     data->Window = window;
     data->WindowID = SDL_GetWindowID(window);
+    data->WindowOwned = false;
     data->GLContext = sdl_gl_context;
     main_viewport->PlatformUserData = data;
     main_viewport->PlatformHandle = data->Window;

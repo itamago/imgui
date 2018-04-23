@@ -334,8 +334,8 @@ int main(int, char**)
     // Setup ImGui binding
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_EnableViewports;
-    io.ConfigFlags |= ImGuiConfigFlags_NoTaskBarForViewports;
+    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+    io.ConfigFlags |= ImGuiConfigFlags_ViewportsNoTaskBarIcons;
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
 
     // Setup SDL binding
@@ -469,9 +469,12 @@ int main(int, char**)
         memcpy(&wd->ClearValue.color.float32[0], &clear_color, 4 * sizeof(float));
 		FrameRender(wd);
         
-        // Update and Render additional Platform Windows (when ImGuiConfigFlags_EnableViewports is enabled)
-        ImGui::UpdatePlatformWindows();
-        ImGui::RenderPlatformWindows(NULL, NULL);
+        // Update and Render additional Platform Windows
+        if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+        {
+            ImGui::UpdatePlatformWindows();
+            ImGui::RenderPlatformWindowsDefault();
+        }
 
         FramePresent(wd);
     }

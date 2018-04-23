@@ -3,7 +3,7 @@
 
 // Implemented features:
 //  [X] User texture binding. Use 'ID3D11ShaderResourceView*' as ImTextureID. Read the FAQ about ImTextureID in imgui.cpp.
-//  [X] Multi-viewport rendering (when ImGuiConfigFlags_EnableViewports is enabled).
+//  [X] Multi-viewport rendering (when ImGuiConfigFlags_ViewportsEnable is enabled).
 
 // You can copy and use unmodified imgui_impl_* files in your project. See main.cpp for an example of using this.
 // If you use this binding you'll need to call 4 functions: ImGui_ImplXXXX_Init(), ImGui_ImplXXXX_NewFrame(), ImGui::Render() and ImGui_ImplXXXX_Shutdown().
@@ -22,6 +22,7 @@
 #include "imgui_impl_dx11.h"
 
 // DirectX
+#include <stdio.h>
 #include <d3d11.h>
 #include <d3dcompiler.h>
 
@@ -491,7 +492,7 @@ bool    ImGui_ImplDX11_Init(ID3D11Device* device, ID3D11DeviceContext* device_co
     // Setup back-end capabilities flags
     ImGuiIO& io = ImGui::GetIO();
     io.BackendFlags |= ImGuiBackendFlags_RendererHasViewports;    // We can create multi-viewports on the Renderer side (optional)
-    if (io.ConfigFlags & ImGuiConfigFlags_EnableViewports)
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
         ImGui_ImplDX11_InitPlatformInterface();
     return true;
 }
@@ -561,6 +562,7 @@ static void ImGui_ImplDX11_CreateWindow(ImGuiViewport* viewport)
 
 static void ImGui_ImplDX11_DestroyWindow(ImGuiViewport* viewport)
 {
+    // The main viewport (owned by the application) will always have RendererUserData == NULL since we didn't create the data for it.
     if (ImGuiViewportDataDx11* data = (ImGuiViewportDataDx11*)viewport->RendererUserData)
     {
         if (data->SwapChain)
@@ -587,6 +589,11 @@ static void ImGui_ImplDX11_SetWindowSize(ImGuiViewport* viewport, ImVec2 size)
         ID3D11Texture2D* pBackBuffer = NULL;
         data->SwapChain->ResizeBuffers(0, (UINT)size.x, (UINT)size.y, DXGI_FORMAT_UNKNOWN, 0);
         data->SwapChain->GetBuffer(0, IID_PPV_ARGS(&pBackBuffer));
+        if (pBackBuffer == NULL)
+        {
+            fprintf(stderr, "ImGui_ImplDX11_SetWindowSize() can't created buffers.\n");
+            return;
+        }
         g_pd3dDevice->CreateRenderTargetView(pBackBuffer, NULL, &data->RTView);
         pBackBuffer->Release();
     }

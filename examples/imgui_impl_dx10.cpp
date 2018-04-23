@@ -3,7 +3,7 @@
 
 // Implemented features:
 //  [X] User texture binding. Use 'ID3D10ShaderResourceView*' as ImTextureID. Read the FAQ about ImTextureID in imgui.cpp.
-//  [X] Multi-viewport rendering (when ImGuiConfigFlags_EnableViewports is enabled).
+//  [X] Multi-viewport rendering (when ImGuiConfigFlags_ViewportsEnable is enabled).
 
 // You can copy and use unmodified imgui_impl_* files in your project. See main.cpp for an example of using this.
 // If you use this binding you'll need to call 4 functions: ImGui_ImplXXXX_Init(), ImGui_ImplXXXX_NewFrame(), ImGui::Render() and ImGui_ImplXXXX_Shutdown().
@@ -14,6 +14,7 @@
 // (minor and older changes stripped away, please see git history for details)
 //  2018-XX-XX: Platform: Added support for multiple windows via the ImGuiPlatformIO interface.
 //  2018-XX-XX: DirectX10: Offset projection matrix and clipping rectangle by draw_data->DisplayPos (which will be non-zero for multi-viewport applications).
+//  2018-04-09: Misc: Fixed erroneous call to io.Fonts->ClearInputData() + ClearTexData() that was left in DX10 example but removed in 1.47 (Nov 2015) on other back-ends.
 //  2018-02-16: Misc: Obsoleted the io.RenderDrawListsFn callback and exposed ImGui_ImplDX10_RenderDrawData() in the .h file so you can call it yourself.
 //  2018-02-06: Misc: Removed call to ImGui::Shutdown() which is not available from 1.60 WIP, user needs to call CreateContext/DestroyContext themselves.
 //  2016-05-07: DirectX10: Disabling depth-write.
@@ -22,6 +23,7 @@
 #include "imgui_impl_dx10.h"
 
 // DirectX
+#include <stdio.h>
 #include <d3d10_1.h>
 #include <d3d10.h>
 #include <d3dcompiler.h>
@@ -483,7 +485,7 @@ bool    ImGui_ImplDX10_Init(ID3D10Device* device)
     // Setup back-end capabilities flags
     ImGuiIO& io = ImGui::GetIO();
     io.BackendFlags |= ImGuiBackendFlags_RendererHasViewports;    // We can create multi-viewports on the Renderer side (optional)
-    if (io.ConfigFlags & ImGuiConfigFlags_EnableViewports)
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
         ImGui_ImplDX10_InitPlatformInterface();
     return true;
 }
@@ -519,7 +521,6 @@ static void ImGui_ImplDX10_CreateWindow(ImGuiViewport* viewport)
     ImGuiViewportDataDx10* data = IM_NEW(ImGuiViewportDataDx10)();
     viewport->RendererUserData = data;
 
-    // FIXME-PLATFORM
     HWND hwnd = (HWND)viewport->PlatformHandle;
     IM_ASSERT(hwnd != 0);
 
@@ -553,6 +554,7 @@ static void ImGui_ImplDX10_CreateWindow(ImGuiViewport* viewport)
 
 static void ImGui_ImplDX10_DestroyWindow(ImGuiViewport* viewport)
 {
+    // The main viewport (owned by the application) will always have RendererUserData == NULL here since we didn't create the data for it.
     if (ImGuiViewportDataDx10* data = (ImGuiViewportDataDx10*)viewport->RendererUserData)
     {
         if (data->SwapChain)
@@ -579,6 +581,11 @@ static void ImGui_ImplDX10_SetWindowSize(ImGuiViewport* viewport, ImVec2 size)
         ID3D10Texture2D* pBackBuffer = NULL;
         data->SwapChain->ResizeBuffers(0, (UINT)size.x, (UINT)size.y, DXGI_FORMAT_UNKNOWN, 0);
         data->SwapChain->GetBuffer(0, IID_PPV_ARGS(&pBackBuffer));
+        if (pBackBuffer == NULL)
+        {
+            fprintf(stderr, "ImGui_ImplDX10_SetWindowSize() can't created buffers.\n");
+            return;
+        }
         g_pd3dDevice->CreateRenderTargetView(pBackBuffer, NULL, &data->RTView);
         pBackBuffer->Release();
     }

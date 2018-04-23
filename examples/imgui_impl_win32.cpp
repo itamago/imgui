@@ -9,7 +9,7 @@
 
 // CHANGELOG
 //  2018-XX-XX: Platform: Added support for multiple windows via the ImGuiPlatformIO interface.
-//  2018-03-20: Misc: Setup io.BackendFlags ImGuiBackendFlags_HasMouseCursors and ImGuiBackendFlags_HasSetMousePos flags + honor ImGuiConfigFlags_NoSetMouseCursor flag.
+//  2018-03-20: Misc: Setup io.BackendFlags ImGuiBackendFlags_HasMouseCursors and ImGuiBackendFlags_HasSetMousePos flags + honor ImGuiConfigFlags_NoMouseCursorChange flag.
 //  2018-02-20: Inputs: Added support for mouse cursors (ImGui::GetMouseCursor() value and WM_SETCURSOR message handling).
 //  2018-02-06: Inputs: Added mapping for ImGuiKey_Space.
 //  2018-02-06: Inputs: Honoring the io.WantSetMousePos by repositioning the mouse (when using navigation and ImGuiConfigFlags_NavMoveMouse is set).
@@ -50,10 +50,10 @@ bool    ImGui_ImplWin32_Init(void* hwnd)
     g_hWnd = (HWND)hwnd;
     ImGuiViewport* main_viewport = ImGui::GetMainViewport();
     main_viewport->PlatformHandle = (void*)g_hWnd;
-    if (io.ConfigFlags & ImGuiConfigFlags_EnableViewports)
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
         ImGui_ImplWin32_InitPlatformInterface();
 
-    // Keyboard mapping. ImGui will use those indices to peek into the io.KeyDown[] array that we will update during the application lifetime.
+    // Keyboard mapping. ImGui will use those indices to peek into the io.KeysDown[] array that we will update during the application lifetime.
     io.KeyMap[ImGuiKey_Tab] = VK_TAB;
     io.KeyMap[ImGuiKey_LeftArrow] = VK_LEFT;
     io.KeyMap[ImGuiKey_RightArrow] = VK_RIGHT;
@@ -90,7 +90,7 @@ void    ImGui_ImplWin32_Shutdown()
 static bool ImGui_ImplWin32_UpdateMouseCursor()
 {
     ImGuiIO& io = ImGui::GetIO();
-    if (io.ConfigFlags & ImGuiConfigFlags_NoSetMouseCursor)
+    if (io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange)
         return false;
 
     ImGuiMouseCursor imgui_cursor = io.MouseDrawCursor ? ImGuiMouseCursor_None : ImGui::GetMouseCursor();
@@ -200,6 +200,11 @@ void    ImGui_ImplWin32_NewFrame()
     ImGui::NewFrame();
 }
 
+// Allow compilation with old Windows SDK. MinGW doesn't have default _WIN32_WINNT/WINVER versions.
+#ifndef WM_MOUSEHWHEEL
+#define WM_MOUSEHWHEEL 0x020E
+#endif
+
 // Process Win32 mouse/keyboard inputs. 
 // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
 // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application.
@@ -281,9 +286,7 @@ IMGUI_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wPa
 // So we dynamically select and load those functions to avoid dependencies. This is the scheme successfully 
 // used by GLFW (from which we borrowed some of the code here) and other applications aiming to be portable.
 //---------------------------------------------------------------------------------------------------------
-// FIXME-DPI: For now we just call SetProcessDpiAwareness(PROCESS_PER_MONITOR_AWARE) without requiring SDK 8.1 or 10.
-// We may allow/aim calling the most-recent-available version, e.g. Windows 10 Creators Update has SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-// At this point ImGui_ImplWin32_EnableDpiAwareness() is just a helper called by main.cpp, we don't call it ourselves.
+// At this point ImGui_ImplWin32_EnableDpiAwareness() is just a helper called by main.cpp, we don't call it automatically.
 //---------------------------------------------------------------------------------------------------------
 
 static BOOL IsWindowsVersionOrGreater(WORD major, WORD minor, WORD sp)
@@ -302,11 +305,26 @@ static BOOL IsWindowsVersionOrGreater(WORD major, WORD minor, WORD sp)
 typedef enum { PROCESS_DPI_UNAWARE = 0, PROCESS_SYSTEM_DPI_AWARE = 1, PROCESS_PER_MONITOR_DPI_AWARE = 2 } PROCESS_DPI_AWARENESS;
 typedef enum { MDT_EFFECTIVE_DPI = 0, MDT_ANGULAR_DPI = 1, MDT_RAW_DPI = 2, MDT_DEFAULT = MDT_EFFECTIVE_DPI } MONITOR_DPI_TYPE;
 #endif
-typedef HRESULT(WINAPI * PFN_SetProcessDpiAwareness)(PROCESS_DPI_AWARENESS);              // Shcore.lib+dll, Windows 8.1
-typedef HRESULT(WINAPI * PFN_GetDpiForMonitor)(HMONITOR, MONITOR_DPI_TYPE, UINT*, UINT*); // Shcore.lib+dll, Windows 8.1
+#ifndef _DPI_AWARENESS_CONTEXTS_
+DECLARE_HANDLE(DPI_AWARENESS_CONTEXT);
+#define DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE    (DPI_AWARENESS_CONTEXT)-3
+#define DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 (DPI_AWARENESS_CONTEXT)-4
+#endif
+typedef HRESULT(WINAPI * PFN_SetProcessDpiAwareness)(PROCESS_DPI_AWARENESS);                     // Shcore.lib+dll, Windows 8.1
+typedef HRESULT(WINAPI * PFN_GetDpiForMonitor)(HMONITOR, MONITOR_DPI_TYPE, UINT*, UINT*);        // Shcore.lib+dll, Windows 8.1
+typedef DPI_AWARENESS_CONTEXT(WINAPI * PFN_SetThreadDpiAwarenessContext)(DPI_AWARENESS_CONTEXT); // User32.lib+dll, Windows 10 v1607 (Creators Update)
 
 void ImGui_ImplWin32_EnableDpiAwareness()
 {
+    // if (IsWindows10OrGreater()) // FIXME-DPI: This needs a manifest to succeed. Instead we try to grab the function pointer.
+    {
+        static HINSTANCE user32_dll = ::LoadLibraryA("user32.dll"); // Reference counted per-process
+        if (PFN_SetThreadDpiAwarenessContext SetThreadDpiAwarenessContextFn = (PFN_SetThreadDpiAwarenessContext)::GetProcAddress(user32_dll, "SetThreadDpiAwarenessContext"))
+        {
+            SetThreadDpiAwarenessContextFn(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+            return;
+        }
+    }
     if (IsWindows8Point1OrGreater())
     {
         static HINSTANCE shcore_dll = ::LoadLibraryA("shcore.dll"); // Reference counted per-process
@@ -359,10 +377,11 @@ float ImGui_ImplWin32_GetDpiScaleForRect(int x1, int y1, int x2, int y2)
 struct ImGuiViewportDataWin32
 {
     HWND    Hwnd;
+    bool    HwndOwned;
     DWORD   DwStyle;
     DWORD   DwExStyle;
 
-    ImGuiViewportDataWin32() { Hwnd = NULL; DwStyle = DwExStyle = 0; }
+    ImGuiViewportDataWin32() { Hwnd = NULL; HwndOwned = false;  DwStyle = DwExStyle = 0; }
     ~ImGuiViewportDataWin32() { IM_ASSERT(Hwnd == NULL); }
 };
 
@@ -371,27 +390,29 @@ static void ImGui_ImplWin32_CreateWindow(ImGuiViewport* viewport)
     ImGuiViewportDataWin32* data = IM_NEW(ImGuiViewportDataWin32)();
     viewport->PlatformUserData = data;
 
-    ImGuiIO& io = ImGui::GetIO();
     bool no_decoration = (viewport->Flags & ImGuiViewportFlags_NoDecoration) != 0;
-    bool no_task_bar = (io.ConfigFlags & ImGuiConfigFlags_NoTaskBarForViewports) != 0;
+    bool no_task_bar_icon = (viewport->Flags & ImGuiViewportFlags_NoTaskBarIcon) != 0;
     if (no_decoration)
     {
         data->DwStyle = WS_POPUP;
-        data->DwExStyle = no_task_bar ? WS_EX_TOOLWINDOW : WS_EX_APPWINDOW;
+        data->DwExStyle = no_task_bar_icon ? WS_EX_TOOLWINDOW : WS_EX_APPWINDOW;
     }
     else
     {
         data->DwStyle = WS_OVERLAPPEDWINDOW;
-        data->DwExStyle = no_task_bar ? WS_EX_TOOLWINDOW : WS_EX_APPWINDOW;
+        data->DwExStyle = no_task_bar_icon ? WS_EX_TOOLWINDOW : WS_EX_APPWINDOW;
     }
+    if (viewport->Flags & imGuiViewportFlags_TopMost)
+        data->DwExStyle |= WS_EX_TOPMOST;
 
     // Create window
-    RECT rect = { (LONG)viewport->PlatformPos.x, (LONG)viewport->PlatformPos.y, (LONG)(viewport->PlatformPos.x + viewport->Size.x), (LONG)(viewport->PlatformPos.y + viewport->Size.y) };
+    RECT rect = { (LONG)viewport->Pos.x, (LONG)viewport->Pos.y, (LONG)(viewport->Pos.x + viewport->Size.x), (LONG)(viewport->Pos.y + viewport->Size.y) };
     ::AdjustWindowRectEx(&rect, data->DwStyle, FALSE, data->DwExStyle);
-    data->Hwnd = ::CreateWindowExA(
-        data->DwExStyle, "ImGui Platform", "No Title Yet", data->DwStyle,       // Style, class name, window name
-        rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top,    // Window area
-        g_hWnd, NULL, ::GetModuleHandle(NULL), NULL);                           // Parent window, Menu, Instance, Param
+    data->Hwnd = ::CreateWindowEx(
+        data->DwExStyle, _T("ImGui Platform"), _T("No Title Yet"), data->DwStyle,   // Style, class name, window name
+        rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top,        // Window area
+        g_hWnd, NULL, ::GetModuleHandle(NULL), NULL);                               // Parent window, Menu, Instance, Param
+    data->HwndOwned = true;
     viewport->PlatformRequestResize = false;
     viewport->PlatformHandle = data->Hwnd;
 }
@@ -402,11 +423,11 @@ static void ImGui_ImplWin32_DestroyWindow(ImGuiViewport* viewport)
     {
         if (::GetCapture() == data->Hwnd)
         {
-            // Transfer capture so if we started dragging from a window that later disappears, we'll still release the MOUSEUP event.
+            // Transfer capture so if we started dragging from a window that later disappears, we'll still receive the MOUSEUP event.
             ::ReleaseCapture();
             ::SetCapture(g_hWnd);
         }
-        if (data->Hwnd)
+        if (data->Hwnd && data->HwndOwned)
             ::DestroyWindow(data->Hwnd);
         data->Hwnd = NULL;
         IM_DELETE(data);
@@ -467,6 +488,24 @@ static void ImGui_ImplWin32_SetWindowTitle(ImGuiViewport* viewport, const char* 
     ::SetWindowTextA(data->Hwnd, title);
 }
 
+static void ImGui_ImplWin32_SetWindowAlpha(ImGuiViewport* viewport, float alpha)
+{
+    ImGuiViewportDataWin32* data = (ImGuiViewportDataWin32*)viewport->PlatformUserData;
+    IM_ASSERT(data->Hwnd != 0);
+    IM_ASSERT(alpha >= 0.0f && alpha <= 1.0f);
+    if (alpha < 1.0f)
+    {
+        DWORD style = ::GetWindowLongW(data->Hwnd, GWL_EXSTYLE) | WS_EX_LAYERED;
+        ::SetWindowLongW(data->Hwnd, GWL_EXSTYLE, style);
+        ::SetLayeredWindowAttributes(data->Hwnd, 0, (BYTE)(255 * alpha), LWA_ALPHA);
+    }
+    else
+    {
+        DWORD style = ::GetWindowLongW(data->Hwnd, GWL_EXSTYLE) & ~WS_EX_LAYERED;
+        ::SetWindowLongW(data->Hwnd, GWL_EXSTYLE, style);
+    }
+}
+
 static float ImGui_ImplWin32_GetWindowDpiScale(ImGuiViewport* viewport)
 {
     ImGuiViewportDataWin32* data = (ImGuiViewportDataWin32*)viewport->PlatformUserData;
@@ -475,8 +514,24 @@ static float ImGui_ImplWin32_GetWindowDpiScale(ImGuiViewport* viewport)
 
     // The first frame a viewport is created we don't have a window yet
     return ImGui_ImplWin32_GetDpiScaleForRect(
-        (int)(viewport->PlatformPos.x), (int)(viewport->PlatformPos.y),
-        (int)(viewport->PlatformPos.x + viewport->Size.x), (int)(viewport->PlatformPos.y + viewport->Size.y));
+        (int)(viewport->Pos.x), (int)(viewport->Pos.y),
+        (int)(viewport->Pos.x + viewport->Size.x), (int)(viewport->Pos.y + viewport->Size.y));
+}
+
+// FIXME-DPI: Testing DPI related ideas
+static void ImGui_ImplWin32_OnChangedViewport(ImGuiViewport* viewport)
+{
+    (void)viewport;
+#if 0
+    ImGuiStyle default_style;
+    //default_style.WindowPadding = ImVec2(0, 0);
+    //default_style.WindowBorderSize = 0.0f;
+    //default_style.ItemSpacing.y = 3.0f;
+    //default_style.FramePadding = ImVec2(0, 0);
+    default_style.ScaleAllSizes(viewport->DpiScale);
+    ImGuiStyle& style = ImGui::GetStyle();
+    style = default_style;
+#endif
 }
 
 static LRESULT CALLBACK ImGui_ImplWin32_WndProcHandler_PlatformWindow(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -498,7 +553,10 @@ static LRESULT CALLBACK ImGui_ImplWin32_WndProcHandler_PlatformWindow(HWND hWnd,
             viewport->PlatformRequestResize = true;
             break;
         case WM_NCHITTEST:
-            // Let mouse pass-through the window, this is used while e.g. dragging a window, we creates a temporary overlay but want the cursor to aim behind our overlay.
+            // Let mouse pass-through the window. This will allow the back-end to set io.MouseHoveredViewport properly (which is OPTIONAL).
+            // The ImGuiViewportFlags_NoInputs flag is set while dragging a viewport, as want to detect the window behind the one we are dragging.
+            // If you cannot easily access those viewport flags from your windowing/event code: you may manually synchronize its state e.g. in
+            // your main loop after calling UpdatePlatformWindows(). Iterate all viewports/platform windows and pass the flag to your windowing system.
             if (viewport->Flags & ImGuiViewportFlags_NoInputs)
                 return HTTRANSPARENT;
             break;
@@ -506,6 +564,29 @@ static LRESULT CALLBACK ImGui_ImplWin32_WndProcHandler_PlatformWindow(HWND hWnd,
     }
 
     return DefWindowProc(hWnd, msg, wParam, lParam);
+}
+
+static BOOL CALLBACK ImGui_ImplWin32_UpdateMonitors_EnumFunc(HMONITOR monitor, HDC, LPRECT, LPARAM)
+{
+    MONITORINFO info = { 0 };
+    info.cbSize = sizeof(MONITORINFO);
+    if (!::GetMonitorInfo(monitor, &info))
+        return TRUE;
+    ImGuiPlatformMonitor imgui_monitor;
+    imgui_monitor.FullMin = ImVec2((float)info.rcMonitor.left, (float)info.rcMonitor.top);
+    imgui_monitor.FullMax = ImVec2((float)info.rcMonitor.right, (float)info.rcMonitor.bottom);
+    imgui_monitor.WorkMin = ImVec2((float)info.rcWork.left, (float)info.rcWork.top);
+    imgui_monitor.WorkMax = ImVec2((float)info.rcWork.right, (float)info.rcWork.bottom);
+    imgui_monitor.DpiScale = ImGui_ImplWin32_GetDpiScaleForMonitor(monitor);
+    ImGui::GetPlatformIO().Monitors.push_back(imgui_monitor);
+    return TRUE;
+}
+
+// FIXME-PLATFORM: Update monitor list when changed (WM_DISPLAYCHANGE?)
+static void ImGui_ImplWin32_UpdateMonitors()
+{
+    ImGui::GetPlatformIO().Monitors.resize(0);
+    ::EnumDisplayMonitors(NULL, NULL, ImGui_ImplWin32_UpdateMonitors_EnumFunc, NULL);
 }
 
 static void ImGui_ImplWin32_InitPlatformInterface()
@@ -525,6 +606,8 @@ static void ImGui_ImplWin32_InitPlatformInterface()
     wcex.hIconSm = NULL;
     ::RegisterClassEx(&wcex);
 
+    ImGui_ImplWin32_UpdateMonitors();
+
     // Register platform interface (will be coupled with a renderer interface)
     ImGuiPlatformIO& platform_io = ImGui::GetPlatformIO();
     platform_io.Platform_CreateWindow = ImGui_ImplWin32_CreateWindow;
@@ -535,14 +618,17 @@ static void ImGui_ImplWin32_InitPlatformInterface()
     platform_io.Platform_SetWindowSize = ImGui_ImplWin32_SetWindowSize;
     platform_io.Platform_GetWindowSize = ImGui_ImplWin32_GetWindowSize;
     platform_io.Platform_SetWindowTitle = ImGui_ImplWin32_SetWindowTitle;
+    platform_io.Platform_SetWindowAlpha = ImGui_ImplWin32_SetWindowAlpha;
     platform_io.Platform_GetWindowDpiScale = ImGui_ImplWin32_GetWindowDpiScale;
+    platform_io.Platform_OnChangedViewport = ImGui_ImplWin32_OnChangedViewport; // FIXME-DPI
 
-    // Register main window handle
+    // Register main window handle (which is owned by the main application, not by us)
     ImGuiViewport* main_viewport = ImGui::GetMainViewport();
     ImGuiViewportDataWin32* data = IM_NEW(ImGuiViewportDataWin32)();
     data->Hwnd = g_hWnd;
+    data->HwndOwned = false;
     main_viewport->PlatformUserData = data;
-    main_viewport->PlatformHandle = (void*)data->Hwnd;
+    main_viewport->PlatformHandle = (void*)g_hWnd;
 }
 
 static void ImGui_ImplWin32_ShutdownPlatformInterface()

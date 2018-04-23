@@ -1,4 +1,4 @@
-// dear imgui, v1.60 WIP
+// dear imgui, v1.61 WIP
 // (internals)
 
 // You may use this file to debug, understand or extend ImGui features but we don't provide any guarantee of forward compatibility!
@@ -98,7 +98,7 @@ IMGUI_API int           ImTextCountUtf8BytesFromStr(const ImWchar* in_text, cons
 IMGUI_API ImU32         ImHash(const void* data, int data_size, ImU32 seed = 0);    // Pass data_size==0 for zero-terminated strings
 IMGUI_API void*         ImFileLoadToMemory(const char* filename, const char* file_open_mode, int* out_file_size = NULL, int padding_bytes = 0);
 IMGUI_API FILE*         ImFileOpen(const char* filename, const char* file_open_mode);
-static inline bool      ImCharIsSpace(int c)            { return c == ' ' || c == '\t' || c == 0x3000; }
+static inline bool      ImCharIsSpace(unsigned int c)   { return c == ' ' || c == '\t' || c == 0x3000; }
 static inline bool      ImIsPowerOfTwo(int v)           { return v != 0 && (v & (v - 1)) == 0; }
 static inline int       ImUpperPowerOfTwo(int v)        { v--; v |= v >> 1; v |= v >> 2; v |= v >> 4; v |= v >> 8; v |= v >> 16; v++; return v; }
 
@@ -113,7 +113,7 @@ IMGUI_API int           ImStricmp(const char* str1, const char* str2);
 IMGUI_API int           ImStrnicmp(const char* str1, const char* str2, size_t count);
 IMGUI_API void          ImStrncpy(char* dst, const char* src, size_t count);
 IMGUI_API char*         ImStrdup(const char* str);
-IMGUI_API char*         ImStrchrRange(const char* str_begin, const char* str_end, char c);
+IMGUI_API const char*   ImStrchrRange(const char* str_begin, const char* str_end, char c);
 IMGUI_API int           ImStrlenW(const ImWchar* str);
 IMGUI_API const ImWchar*ImStrbolW(const ImWchar* buf_mid_line, const ImWchar* buf_begin); // Find beginning-of-line
 IMGUI_API const char*   ImStristr(const char* haystack, const char* haystack_end, const char* needle, const char* needle_end);
@@ -248,7 +248,8 @@ enum ImGuiDataType
 {
     ImGuiDataType_Int,
     ImGuiDataType_Float,
-    ImGuiDataType_Float2
+    ImGuiDataType_Double,
+    ImGuiDataType_COUNT
 };
 
 enum ImGuiInputSource
@@ -258,7 +259,7 @@ enum ImGuiInputSource
     ImGuiInputSource_Nav,
     ImGuiInputSource_NavKeyboard,   // Only used occasionally for storage, not tested/handled by most code
     ImGuiInputSource_NavGamepad,    // "
-    ImGuiInputSource_COUNT,
+    ImGuiInputSource_COUNT
 };
 
 // FIXME-NAV: Clarify/expose various repeat delay/rate
@@ -404,13 +405,13 @@ struct ImGuiWindowSettings
 {
     char*       Name;
     ImGuiID     Id;
-    ImVec2      Pos;
+    ImVec2      Pos;     // NB: Settings position are stored RELATIVE to the viewport! Whereas runtime ones are absolute positions.
     ImVec2      Size;
-    ImVec2      ViewportPlatformPos;
+    ImVec2      ViewportPos;
     ImGuiID     ViewportId;
     bool        Collapsed;
 
-    ImGuiWindowSettings() { Name = NULL; Id = ViewportId = 0; Pos = Size = ImVec2(0,0); ViewportPlatformPos = ImVec2(FLT_MAX, FLT_MAX); Collapsed = false; }
+    ImGuiWindowSettings() { Name = NULL; Id = ViewportId = 0; Pos = Size = ViewportPos = ImVec2(0, 0); Collapsed = false; }
 };
 
 struct ImGuiSettingsHandler
@@ -515,17 +516,21 @@ struct ImGuiViewportP : public ImGuiViewport
     int                 Idx;
     int                 LastFrameActive;          // Last frame number this viewport was activated by a window
     int                 LastFrameAsRefViewport;   // Last frame number this viewport was io.MouseViewportRef
+    int                 LastFrameOverlayDrawList;
     ImGuiID             LastNameHash;
+    ImVec2              LastPos;
+    float               Alpha;                    // Window opacity (when dragging dockable windows/viewports we make them transparent)
+    float               LastAlpha;
     ImGuiWindow*        Window;
     ImDrawList*         OverlayDrawList;          // For convenience, a draw list we can render to that's always rendered last (we use it to draw software mouse cursor when io.MouseDrawCursor is set)
     ImDrawData          DrawDataP;
     ImDrawDataBuilder   DrawDataBuilder;
     ImVec2              RendererLastSize;
 
-    ImGuiViewportP(ImDrawListSharedData* draw_list_shared_data) { Idx = 1; LastFrameActive = LastFrameAsRefViewport = -1; LastNameHash = 0; Window = NULL; OverlayDrawList = IM_NEW(ImDrawList)(draw_list_shared_data); OverlayDrawList->_OwnerName = "##Overlay"; RendererLastSize = ImVec2(-1.0f,-1.0f); }
-    ~ImGuiViewportP()        { IM_DELETE(OverlayDrawList); }
+    ImGuiViewportP()         { Idx = 1; LastFrameActive = LastFrameAsRefViewport = LastFrameOverlayDrawList = -1; LastNameHash = 0; Alpha = LastAlpha = 1.0f; Window = NULL; OverlayDrawList = NULL; RendererLastSize = ImVec2(-1.0f,-1.0f); }
+    ~ImGuiViewportP()        { if (OverlayDrawList) IM_DELETE(OverlayDrawList); }
     ImRect  GetRect() const  { return ImRect(Pos.x, Pos.y, Pos.x + Size.x, Pos.y + Size.y); }
-    float   GetNextX() const { const float SPACING = 4.0f; return Pos.x + Size.x + SPACING; }
+    ImVec2  GetCenter() const{ return ImVec2(Pos.x + Size.x * 0.5f, Pos.y + Size.y * 0.5f); }
 };
 
 struct ImGuiNavMoveResult
@@ -563,6 +568,7 @@ struct ImGuiNextWindowData
     void*                   SizeCallbackUserData;
     float                   BgAlphaVal;
     ImGuiID                 ViewportId;
+    ImVec2                  MenuBarOffsetMinVal;                // This is not exposed publicly, so we don't clear it.
 
     ImGuiNextWindowData()
     {
@@ -575,6 +581,7 @@ struct ImGuiNextWindowData
         SizeCallbackUserData = NULL;
         BgAlphaVal = FLT_MAX;
         ViewportId = 0;
+        MenuBarOffsetMinVal = ImVec2(0.0f, 0.0f);
     }
 
     void    Clear()
@@ -636,12 +643,12 @@ struct ImGuiContext
     ImGuiCond               NextTreeNodeOpenCond;
 
     // Viewports
-    ImVector<ImGuiViewportP*> Viewports;
-    ImGuiPlatformData       PlatformData;                       // This is essentially the public facing version of the Viewports vector (it is updated in UpdatePlatformWindows and exclude the viewports about to be destroyed)
+    ImVector<ImGuiViewportP*> Viewports;                        // Active viewports (always 1+, and generally 1 unless multi-viewports are enabled). Each viewports hold their copy of ImDrawData. 
     ImGuiViewportP*         CurrentViewport;                    // We track changes of viewport (happening in Begin) so we can call Platform_OnChangedViewport()
-    ImGuiViewportP*         MousePosViewport;
-    ImGuiViewportP*         MousePosPrevViewport;
-    ImGuiViewportP*         MouseHoveredPrevViewport;
+    ImGuiViewportP*         MouseRefViewport;
+    ImGuiViewportP*         MouseRefPrevViewport;
+    ImGuiViewportP*         MouseHoveredLastViewport;           // Last viewport that was hovered by mouse (even if we are not hovering any viewport any more)
+    ImGuiID                 MouseClickedPosViewportId[5];       // For rarely used fields we only compare to, store viewport ID only so we don't have to clean dangling pointers
 
     // Navigation data (for gamepad/keyboard)
     ImGuiWindow*            NavWindow;                          // Focused window for navigation. Could be called 'FocusWindow'
@@ -726,13 +733,13 @@ struct ImGuiContext
     int                     LogAutoExpandMaxDepth;
 
     // Misc
-    float                   FramerateSecPerFrame[120];          // calculate estimate of framerate for user
+    float                   FramerateSecPerFrame[120];          // Calculate estimate of framerate for user over the last 2 seconds.
     int                     FramerateSecPerFrameIdx;
     float                   FramerateSecPerFrameAccum;
-    int                     WantCaptureMouseNextFrame;          // explicit capture via CaptureInputs() sets those flags
+    int                     WantCaptureMouseNextFrame;          // Explicit capture via CaptureKeyboardFromApp()/CaptureMouseFromApp() sets those flags
     int                     WantCaptureKeyboardNextFrame;
     int                     WantTextInputNextFrame;
-    char                    TempBuffer[1024*3+1];               // temporary text buffer
+    char                    TempBuffer[1024*3+1];               // Temporary text buffer
 
     ImGuiContext(ImFontAtlas* shared_font_atlas)
     {
@@ -741,7 +748,6 @@ struct ImGuiContext
         FontSize = FontBaseSize = 0.0f;
         FontAtlasOwnedByContext = shared_font_atlas ? false : true;
         IO.Fonts = shared_font_atlas ? shared_font_atlas : IM_NEW(ImFontAtlas)();
-        memset(&PlatformIO, 0, sizeof(PlatformIO));
 
         Time = 0.0f;
         FrameCount = 0;
@@ -771,8 +777,9 @@ struct ImGuiContext
         NextTreeNodeOpenCond = 0;
 
         CurrentViewport = NULL;
-        MousePosViewport = NULL;
-        MousePosPrevViewport = MouseHoveredPrevViewport = NULL;
+        MouseRefViewport = NULL;
+        MouseRefPrevViewport = MouseHoveredLastViewport = NULL;
+        memset(MouseClickedPosViewportId, 0, sizeof(MouseClickedPosViewportId));
 
         NavWindow = NULL;
         NavId = NavActivateId = NavActivateDownId = NavActivatePressedId = NavInputId = 0;
@@ -877,7 +884,7 @@ struct IMGUI_API ImGuiDrawContext
     int                     NavLayerActiveMask;     // Which layer have been written to (result from previous frame)
     int                     NavLayerActiveMaskNext; // Which layer have been written to (buffer for current frame)
     bool                    MenuBarAppending;       // FIXME: Remove this
-    float                   MenuBarOffsetX;
+    ImVec2                  MenuBarOffset;          // MenuBarOffset.x is sort of equivalent of a per-layer CursorPos.x, saved/restored as we switch to the menu bar. The only situation when MenuBarOffset.y is > 0 if when (SafeAreaPadding.y > FramePadding.y), often used on TVs.
     ImVector<ImGuiWindow*>  ChildWindows;
     ImGuiStorage*           StateStorage;
     ImGuiLayoutType         LayoutType;
@@ -915,7 +922,7 @@ struct IMGUI_API ImGuiDrawContext
         NavLayerCurrent = 0;
         NavLayerCurrentMask = 1 << 0;
         MenuBarAppending = false;
-        MenuBarOffsetX = 0.0f;
+        MenuBarOffset = ImVec2(0.0f, 0.0f);
         StateStorage = NULL;
         LayoutType = ParentLayoutType = ImGuiLayoutType_Vertical;
         ItemWidth = 0.0f;
@@ -937,8 +944,9 @@ struct IMGUI_API ImGuiWindow
     ImGuiID                 ID;                                 // == ImHash(Name)
     ImGuiWindowFlags        Flags, FlagsPreviousFrame;          // See enum ImGuiWindowFlags_
     ImGuiViewportP*         Viewport;                           // Always set in Begin(), only inactive windows may have a NULL value here
-    ImGuiID                 ViewportId;                         // Inactive windows preserve their last viewport id (since the viewport may disappear with the window inactivity)
-    ImVec2                  ViewportPlatformPos;
+    ImGuiID                 ViewportId;                         // We backup the viewport id (since the viewport may disappear or never be created if the window is inactive)
+    ImVec2                  ViewportPos;                        // We backup the viewport position (since the viewport may disappear or never be created if the window is inactive)
+    int                     ViewportAllowPlatformMonitorExtend; // Reset to -1 every frame (index is guaranteed to be valid between NewFrame..EndFrame), only used in the Appearing frame of a tooltip/popup to enforce clamping to a given monitor
     ImVec2                  PosFloat;
     ImVec2                  Pos;                                // Position rounded-up to nearest pixel
     ImVec2                  Size;                               // Current size (==SizeFull or collapsed title bar size)
@@ -955,8 +963,11 @@ struct IMGUI_API ImGuiWindow
     ImVec2                  Scroll;
     ImVec2                  ScrollTarget;                       // target scroll position. stored as cursor position with scrolling canceled out, so the highest point is always 0.0f. (FLT_MAX for no change)
     ImVec2                  ScrollTargetCenterRatio;            // 0.0f = scroll so that target position is at top, 0.5f = scroll so that target position is centered
-    bool                    ScrollbarX, ScrollbarY;
     ImVec2                  ScrollbarSizes;
+    bool                    ScrollbarX, ScrollbarY;
+    bool                    ViewportOwned;
+    bool                    ViewportTryMerge;                   // Request attempt to merge into a host viewport and destroy our owned viewport
+    bool                    ViewportTrySplit;                   // Request attempt to split out of a host viewport and create our owned viewport
     bool                    Active;                             // Set to true on Begin(), unless Collapsed
     bool                    WasActive;
     bool                    WriteAccessed;                      // Set to true when any widget access the current window
@@ -993,7 +1004,8 @@ struct IMGUI_API ImGuiWindow
     ImVector<ImGuiColumnsSet> ColumnsStorage;
     float                   FontWindowScale;                    // User scale multiplier per-window
     float                   FontDpiScale;
-    ImDrawList*             DrawList;
+    ImDrawList*             DrawList;                           // == &DrawListInst (for backward compatibility reason with code using imgui_internal.h we keep this a pointer)
+    ImDrawList              DrawListInst;
     ImGuiWindow*            ParentWindow;                       // If we are a child _or_ popup window, this is pointing to our parent. Otherwise NULL.
     ImGuiWindow*            RootWindow;                         // Point to ourself or first ancestor that is not a child window.
     ImGuiWindow*            RootWindowForTitleBarHighlight;     // Point to ourself or first ancestor which will display TitleBgActive color when this window is active.
@@ -1027,7 +1039,7 @@ public:
     float       CalcFontSize() const                    { return GImGui->FontBaseSize * FontWindowScale * FontDpiScale; }
     float       TitleBarHeight() const                  { return (Flags & ImGuiWindowFlags_NoTitleBar) ? 0.0f : CalcFontSize() + GImGui->Style.FramePadding.y * 2.0f; }
     ImRect      TitleBarRect() const                    { return ImRect(Pos, ImVec2(Pos.x + SizeFull.x, Pos.y + TitleBarHeight())); }
-    float       MenuBarHeight() const                   { return (Flags & ImGuiWindowFlags_MenuBar) ? CalcFontSize() + GImGui->Style.FramePadding.y * 2.0f : 0.0f; }
+    float       MenuBarHeight() const                   { return (Flags & ImGuiWindowFlags_MenuBar) ? DC.MenuBarOffset.y + CalcFontSize() + GImGui->Style.FramePadding.y * 2.0f : 0.0f; }
     ImRect      MenuBarRect() const                     { float y1 = Pos.y + TitleBarHeight(); return ImRect(Pos.x, y1, Pos.x + SizeFull.x, y1 + MenuBarHeight()); }
 };
 
@@ -1067,6 +1079,8 @@ namespace ImGui
     IMGUI_API void          Initialize(ImGuiContext* context);
     IMGUI_API void          Shutdown(ImGuiContext* context);    // Since 1.60 this is a _private_ function. You can call DestroyContext() to destroy the context created by CreateContext().
 
+    IMGUI_API void          NewFrameUpdateHoveredWindowAndCaptureFlags();
+
     // Viewports
     IMGUI_API ImGuiViewportP*       FindViewportByID(ImGuiID id);
     IMGUI_API void                  SetNextWindowViewport(ImGuiID id);
@@ -1100,7 +1114,8 @@ namespace ImGui
     IMGUI_API void          PopItemFlag();
 
     IMGUI_API void          SetCurrentFont(ImFont* font);
-    IMGUI_API ImDrawList*   GetOverlayDrawList(ImGuiWindow* window);
+    IMGUI_API ImDrawList*   GetOverlayDrawList(ImGuiViewportP* viewport);
+    inline ImDrawList*      GetOverlayDrawList(ImGuiWindow* window) { return GetOverlayDrawList(window->Viewport); }
 
     IMGUI_API void          OpenPopupEx(ImGuiID id);
     IMGUI_API void          ClosePopup(ImGuiID id);
@@ -1108,6 +1123,7 @@ namespace ImGui
     IMGUI_API bool          IsPopupOpen(ImGuiID id);
     IMGUI_API bool          BeginPopupEx(ImGuiID id, ImGuiWindowFlags extra_flags);
     IMGUI_API void          BeginTooltipEx(ImGuiWindowFlags extra_flags, bool override_previous_tooltip = true);
+    IMGUI_API ImGuiWindow*  GetFrontMostPopupModal();
 
     IMGUI_API void          NavInitWindow(ImGuiWindow* window, bool force_reinit);
     IMGUI_API void          NavMoveRequestCancel();
@@ -1148,7 +1164,6 @@ namespace ImGui
     IMGUI_API bool          ButtonBehavior(const ImRect& bb, ImGuiID id, bool* out_hovered, bool* out_held, ImGuiButtonFlags flags = 0);
     IMGUI_API bool          ButtonEx(const char* label, const ImVec2& size_arg = ImVec2(0,0), ImGuiButtonFlags flags = 0);
     IMGUI_API bool          CloseButton(ImGuiID id, const ImVec2& pos, float radius);
-    IMGUI_API bool          ArrowButton(ImGuiID id, ImGuiDir dir, ImVec2 padding, ImGuiButtonFlags flags = 0);
 
     IMGUI_API bool          SliderBehavior(const ImRect& frame_bb, ImGuiID id, float* v, float v_min, float v_max, float power, int decimal_precision, ImGuiSliderFlags flags = 0);
     IMGUI_API bool          SliderFloatN(const char* label, float* v, int components, float v_min, float v_max, const char* display_format, float power);
@@ -1176,7 +1191,7 @@ namespace ImGui
     IMGUI_API int           ParseFormatPrecision(const char* fmt, int default_value);
     IMGUI_API float         RoundScalar(float value, int decimal_precision);
 
-    // Shade functions
+    // Shade functions (write over already created vertices)
     IMGUI_API void          ShadeVertsLinearColorGradientKeepAlpha(ImDrawVert* vert_start, ImDrawVert* vert_end, ImVec2 gradient_p0, ImVec2 gradient_p1, ImU32 col0, ImU32 col1);
     IMGUI_API void          ShadeVertsLinearAlphaGradientForLeftToRightText(ImDrawVert* vert_start, ImDrawVert* vert_end, float gradient_p0_x, float gradient_p1_x);
     IMGUI_API void          ShadeVertsLinearUV(ImDrawVert* vert_start, ImDrawVert* vert_end, const ImVec2& a, const ImVec2& b, const ImVec2& uv_a, const ImVec2& uv_b, bool clamp);
