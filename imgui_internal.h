@@ -511,10 +511,11 @@ struct ImGuiViewportP : public ImGuiViewport
 {
     int                 Idx;
     int                 LastFrameActive;          // Last frame number this viewport was activated by a window
-    int                 LastFrameAsRefViewport;   // Last frame number this viewport was io.MouseViewportRef
     int                 LastFrameOverlayDrawList;
+    int                 LastFrontMostStampCount;  // Last stamp number from when a window hosted by this viewport was made front-most (by comparing this value between two viewport we have an implicit viewport z-order
     ImGuiID             LastNameHash;
     ImVec2              LastPos;
+    bool                CreatedPlatformWindow;
     float               Alpha;                    // Window opacity (when dragging dockable windows/viewports we make them transparent)
     float               LastAlpha;
     int                 PlatformMonitor;
@@ -524,7 +525,7 @@ struct ImGuiViewportP : public ImGuiViewport
     ImDrawDataBuilder   DrawDataBuilder;
     ImVec2              RendererLastSize;
 
-    ImGuiViewportP()         { Idx = 1; LastFrameActive = LastFrameAsRefViewport = LastFrameOverlayDrawList = -1; LastNameHash = 0; Alpha = LastAlpha = 1.0f; PlatformMonitor = INT_MIN; Window = NULL; OverlayDrawList = NULL; RendererLastSize = ImVec2(-1.0f,-1.0f); }
+    ImGuiViewportP()         { Idx = 1; LastFrameActive = LastFrameOverlayDrawList = LastFrontMostStampCount = -1; LastNameHash = 0; CreatedPlatformWindow = false; Alpha = LastAlpha = 1.0f; PlatformMonitor = INT_MIN; Window = NULL; OverlayDrawList = NULL; RendererLastSize = ImVec2(-1.0f,-1.0f); }
     ~ImGuiViewportP()        { if (OverlayDrawList) IM_DELETE(OverlayDrawList); }
     ImRect  GetRect() const  { return ImRect(Pos.x, Pos.y, Pos.x + Size.x, Pos.y + Size.y); }
     ImVec2  GetCenter() const{ return ImVec2(Pos.x + Size.x * 0.5f, Pos.y + Size.y * 0.5f); }
@@ -610,6 +611,7 @@ struct ImGuiContext
     ImVector<ImGuiWindow*>  CurrentWindowStack;
     ImGuiStorage            WindowsById;
     int                     WindowsActiveCount;
+    int                     WindowsFrontMostStampCount;         // Every time the front-most window changes, we stamp its viewport with an incrementing counter
     ImGuiWindow*            CurrentWindow;                      // Being drawn into
     ImGuiWindow*            HoveredWindow;                      // Will catch mouse inputs
     ImGuiWindow*            HoveredRootWindow;                  // Will catch mouse inputs (for focus/move only)
@@ -643,9 +645,8 @@ struct ImGuiContext
     ImVector<ImGuiViewportP*> Viewports;                        // Active viewports (always 1+, and generally 1 unless multi-viewports are enabled). Each viewports hold their copy of ImDrawData. 
     ImGuiViewportP*         CurrentViewport;                    // We track changes of viewport (happening in Begin) so we can call Platform_OnChangedViewport()
     ImGuiViewportP*         MouseRefViewport;
-    ImGuiViewportP*         MouseRefPrevViewport;
-    ImGuiViewportP*         MouseHoveredLastViewport;           // Last viewport that was hovered by mouse (even if we are not hovering any viewport any more)
-    ImGuiID                 MouseClickedPosViewportId[5];       // For rarely used fields we only compare to, store viewport ID only so we don't have to clean dangling pointers
+    ImGuiViewportP*         MouseLastHoveredViewport;           // Last known viewport that was hovered by mouse (even if we are not hovering any viewport any more)
+    ImGuiID                 PlatformLastFocusedViewport;        // Record of last focused platform window/viewport, when this changes we stamp the viewport as front-most
 
     // Navigation data (for gamepad/keyboard)
     ImGuiWindow*            NavWindow;                          // Focused window for navigation. Could be called 'FocusWindow'
@@ -753,6 +754,7 @@ struct ImGuiContext
         FrameCount = 0;
         FrameCountEnded = FrameCountPlatformEnded = FrameCountRendered = -1;
         WindowsActiveCount = 0;
+        WindowsFrontMostStampCount = 0;
         CurrentWindow = NULL;
         HoveredWindow = NULL;
         HoveredRootWindow = NULL;
@@ -777,9 +779,8 @@ struct ImGuiContext
         NextTreeNodeOpenCond = 0;
 
         CurrentViewport = NULL;
-        MouseRefViewport = NULL;
-        MouseRefPrevViewport = MouseHoveredLastViewport = NULL;
-        memset(MouseClickedPosViewportId, 0, sizeof(MouseClickedPosViewportId));
+        MouseRefViewport = MouseLastHoveredViewport = NULL;
+        PlatformLastFocusedViewport = 0;
 
         NavWindow = NULL;
         NavId = NavActivateId = NavActivateDownId = NavActivatePressedId = NavInputId = 0;
@@ -1083,7 +1084,6 @@ namespace ImGui
 
     // Viewports
     IMGUI_API ImGuiViewportP*       FindViewportByID(ImGuiID id);
-    IMGUI_API void                  SetNextWindowViewport(ImGuiID id);
     IMGUI_API void                  ScaleWindowsInViewport(ImGuiViewportP* viewport, float scale);
     IMGUI_API void                  ShowViewportThumbnails();
 
