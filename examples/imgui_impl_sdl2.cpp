@@ -14,6 +14,7 @@
 // (minor and older changes stripped away, please see git history for details)
 //  2018-XX-XX: Platform: Added support for multiple windows via the ImGuiPlatformIO interface.
 //  2018-XX-XX: Misc: ImGui_ImplSDL2_Init() now takes a SDL_GLContext parameter. 
+//  2018-05-09: Misc: Fixed clipboard paste memory leak (we didn't call SDL_FreeMemory on the data returned by SDL_GetClipboardText).
 //  2018-03-20: Misc: Setup io.BackendFlags ImGuiBackendFlags_HasMouseCursors flag + honor ImGuiConfigFlags_NoMouseCursorChange flag.
 //  2018-02-16: Inputs: Added support for mouse cursors, honoring ImGui::GetMouseCursor() value.
 //  2018-02-06: Misc: Removed call to ImGui::Shutdown() which is not available from 1.60 WIP, user needs to call CreateContext/DestroyContext themselves.
@@ -33,6 +34,7 @@
 // (the multi-viewports feature requires SDL features supported from SDL 2.0.5+)
 #include <SDL.h>
 #include <SDL_syswm.h>
+#define SDL_HAS_WARP_MOUSE_GLOBAL           SDL_VERSION_ATLEAST(2,0,4)
 #define SDL_HAS_CAPTURE_MOUSE               SDL_VERSION_ATLEAST(2,0,4)
 #define SDL_HAS_WINDOW_OPACITY              SDL_VERSION_ATLEAST(2,0,5)
 #define SDL_HAS_ALWAYS_ON_TOP               SDL_VERSION_ATLEAST(2,0,5)
@@ -49,6 +51,7 @@ static SDL_Window*  g_Window = NULL;
 static Uint64       g_Time = 0;
 static bool         g_MousePressed[3] = { false, false, false };
 static SDL_Cursor*  g_MouseCursors[ImGuiMouseCursor_Count_] = { 0 };
+static char*        g_ClipboardTextData = NULL;
 
 // Forward Declarations
 static void ImGui_ImplSDL2_InitPlatformInterface(SDL_Window* window, void* sdl_gl_context);
@@ -56,7 +59,10 @@ static void ImGui_ImplSDL2_ShutdownPlatformInterface();
 
 static const char* ImGui_ImplSDL2_GetClipboardText(void*)
 {
-    return SDL_GetClipboardText();
+    if (g_ClipboardTextData)
+        SDL_free(g_ClipboardTextData);
+    g_ClipboardTextData = SDL_GetClipboardText();
+    return g_ClipboardTextData;
 }
 
 static void ImGui_ImplSDL2_SetClipboardText(void*, const char* text)
@@ -131,6 +137,9 @@ bool    ImGui_ImplSDL2_Init(SDL_Window* window, void* sdl_gl_context)
     // Setup back-end capabilities flags
     ImGuiIO& io = ImGui::GetIO();
     io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;       // We can honor GetMouseCursor() values (optional)
+#if SDL_HAS_WARP_MOUSE_GLOBAL
+    io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;        // We can honor io.WantSetMousePos requests (optional, rarely used)
+#endif
 #if SDL_HAS_CAPTURE_MOUSE
     io.BackendFlags |= ImGuiBackendFlags_PlatformHasViewports;  // We can create multi-viewports on the Platform side (optional)
 #endif
@@ -187,18 +196,35 @@ void ImGui_ImplSDL2_Shutdown()
     ImGui_ImplSDL2_ShutdownPlatformInterface();
     g_Window = NULL;
 
+    // Destroy last known clipboard data
+    if (g_ClipboardTextData)
+        SDL_free(g_ClipboardTextData);
+
     // Destroy SDL mouse cursors
     for (ImGuiMouseCursor cursor_n = 0; cursor_n < ImGuiMouseCursor_Count_; cursor_n++)
         SDL_FreeCursor(g_MouseCursors[cursor_n]);
     memset(g_MouseCursors, 0, sizeof(g_MouseCursors));
 }
 
-static void ImGui_ImplSDL2_UpdateMouse()
+static void ImGui_ImplSDL2_UpdateMousePosAndButtons()
 {
     ImGuiIO& io = ImGui::GetIO();
+    const ImVec2 mouse_pos_backup = io.MousePos;
     io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
     io.MousePosViewport = 0;
     io.MouseHoveredViewport = 0;
+
+    // Set OS mouse position if requested (rarely used, only when ImGuiConfigFlags_NavEnableSetMousePos is enabled by user)
+    // (When multi-viewports are enabled, all imgui positions are same as OS positions.)
+#if SDL_HAS_WARP_MOUSE_GLOBAL
+    if (io.WantSetMousePos)
+    {
+        if ((io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) == 0)
+            SDL_WarpMouseInWindow(g_Window, (int)mouse_pos_backup.x, (int)mouse_pos_backup.y);
+        else
+            SDL_WarpMouseGlobal((int)mouse_pos_backup.x, (int)mouse_pos_backup.y);
+    }
+#endif
 
     int mx, my;
     Uint32 mouse_buttons = SDL_GetMouseState(&mx, &my);
@@ -233,20 +259,25 @@ static void ImGui_ImplSDL2_UpdateMouse()
     if (SDL_GetWindowFlags(g_Window) & SDL_WINDOW_INPUT_FOCUS)
         io.MousePos = ImVec2((float)mx, (float)my);
 #endif
+}
 
-    // Update OS/hardware mouse cursor if imgui isn't drawing a software cursor
-    if ((io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange) == 0)
+static void ImGui_ImplSDL2_UpdateMouseCursor()
+{
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange)
+        return;
+
+    ImGuiMouseCursor imgui_cursor = ImGui::GetMouseCursor();
+    if (io.MouseDrawCursor || imgui_cursor == ImGuiMouseCursor_None)
     {
-        ImGuiMouseCursor cursor = ImGui::GetMouseCursor();
-        if (io.MouseDrawCursor || cursor == ImGuiMouseCursor_None)
-        {
-            SDL_ShowCursor(SDL_FALSE);
-        }
-        else
-        {
-            SDL_SetCursor(g_MouseCursors[cursor] ? g_MouseCursors[cursor] : g_MouseCursors[ImGuiMouseCursor_Arrow]);
-            SDL_ShowCursor(SDL_TRUE);
-        }
+        // Hide OS mouse cursor if imgui is drawing it or if it wants no cursor
+        SDL_ShowCursor(SDL_FALSE);
+    }
+    else
+    {
+        // Show OS mouse cursor
+        SDL_SetCursor(g_MouseCursors[imgui_cursor] ? g_MouseCursors[imgui_cursor] : g_MouseCursors[ImGuiMouseCursor_Arrow]);
+        SDL_ShowCursor(SDL_TRUE);
     }
 }
 
@@ -269,7 +300,8 @@ void ImGui_ImplSDL2_NewFrame(SDL_Window* window)
     io.DeltaTime = g_Time > 0 ? (float)((double)(current_time - g_Time) / frequency) : (float)(1.0f / 60.0f);
     g_Time = current_time;
 
-    ImGui_ImplSDL2_UpdateMouse();
+    ImGui_ImplSDL2_UpdateMousePosAndButtons();
+    ImGui_ImplSDL2_UpdateMouseCursor();
 
     // Start the frame. This call will update the io.WantCaptureMouse, io.WantCaptureKeyboard flag that you can use to dispatch inputs (or not) to your application.
     ImGui::NewFrame();
