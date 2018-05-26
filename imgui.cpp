@@ -3562,22 +3562,25 @@ static void ImGui::UpdateViewports()
             continue;
         }
 
-        // Apply Position and Size (from Platform Window to ImGui) if requested. 
-        // We do it early in the frame instead of waiting for UpdatePlatformWindows() to avoid a frame of lag when moving/resizing using OS facilities.
-        if (viewport->PlatformRequestMove)
-            viewport->Pos = g.PlatformIO.Platform_GetWindowPos(viewport);
-        if (viewport->PlatformRequestResize)
-            viewport->Size = g.PlatformIO.Platform_GetWindowSize(viewport);
+        if ((g.IO.ConfigFlags & ImGuiConfigFlags_ViewportsEnable))
+        {
+            // Apply Position and Size (from Platform Window to ImGui) if requested. 
+            // We do it early in the frame instead of waiting for UpdatePlatformWindows() to avoid a frame of lag when moving/resizing using OS facilities.
+            if (viewport->PlatformRequestMove)
+                viewport->Pos = g.PlatformIO.Platform_GetWindowPos(viewport);
+            if (viewport->PlatformRequestResize)
+                viewport->Size = g.PlatformIO.Platform_GetWindowSize(viewport);
 
-        // Translate imgui windows when a Host Viewport has been moved
-        ImVec2 delta = viewport->Pos - viewport->LastPos;
-        if ((viewport->Flags & ImGuiViewportFlags_CanHostOtherWindows) && (delta.x != 0.0f || delta.y != 0.0f))
-            for (int window_n = 0; window_n < g.Windows.Size; window_n++)
-                if (g.Windows[window_n]->Viewport == viewport)
-                    TranslateWindow(g.Windows[window_n], delta);
+            // Translate imgui windows when a Host Viewport has been moved
+            ImVec2 delta = viewport->Pos - viewport->LastPos;
+            if ((viewport->Flags & ImGuiViewportFlags_CanHostOtherWindows) && (delta.x != 0.0f || delta.y != 0.0f))
+                for (int window_n = 0; window_n < g.Windows.Size; window_n++)
+                    if (g.Windows[window_n]->Viewport == viewport)
+                        TranslateWindow(g.Windows[window_n], delta);
 
-        // Update monitor (we'll use this info to clamp windows and save windows lost in a removed monitor)
-        viewport->PlatformMonitor = FindPlatformMonitorForRect(viewport->GetRect());
+            // Update monitor (we'll use this info to clamp windows and save windows lost in a removed monitor)
+            viewport->PlatformMonitor = FindPlatformMonitorForRect(viewport->GetRect());
+        }
 
         // Update DPI scale
         float new_dpi_scale;
@@ -3645,6 +3648,11 @@ static void ImGui::UpdateViewports()
     IM_ASSERT(g.MouseRefViewport != NULL);
 }
 
+static bool IsWindowActiveAndVisible(ImGuiWindow* window)
+{
+    return (window->HiddenFrames == 0) && (window->Active);
+}
+
 void ImGui::UpdatePlatformWindows()
 {
     ImGuiContext& g = *GImGui;
@@ -3679,7 +3687,9 @@ void ImGui::UpdatePlatformWindows()
         // New windows that appears directly in a new viewport won't always have a size on their frame
         if (viewport->Size.x <= 0 || viewport->Size.y <= 0)
             continue;
-        if (viewport->Window && viewport->Window->HiddenFrames > 0)
+
+        // Ignore viewport that are hosting a hidden window (also check the Active flag, as the implicit Debug window will be registering its viewport then immediately disabled)
+        if (viewport->Window && !IsWindowActiveAndVisible(viewport->Window))
             continue;
 
         // Update viewport flags
@@ -4522,7 +4532,7 @@ static void AddWindowToDrawData(ImGuiWindow* window, int layer)
     for (int i = 0; i < window->DC.ChildWindows.Size; i++)
     {
         ImGuiWindow* child = window->DC.ChildWindows[i];
-        if (child->Active && child->HiddenFrames == 0) // Clipped children may have been marked not active
+        if (IsWindowActiveAndVisible(child)) // Clipped children may have been marked not active
             AddWindowToDrawData(child, layer);
     }
 }
@@ -4665,7 +4675,7 @@ void ImGui::EndFrame()
         ImGuiViewportP* viewport = g.Viewports[i];
         if (viewport->LastFrameActive < g.FrameCount || viewport->Size.x <= 0.0f || viewport->Size.y <= 0.0f)
             continue;
-        if (viewport->Window && viewport->Window->HiddenFrames > 0)
+        if (viewport->Window && !IsWindowActiveAndVisible(viewport->Window))
             continue;
         if (i > 0)
             IM_ASSERT(viewport->Window != NULL);
@@ -4712,10 +4722,10 @@ void ImGui::Render()
     for (int n = 0; n != g.Windows.Size; n++)
     {
         ImGuiWindow* window = g.Windows[n];
-        if (window->Active && window->HiddenFrames == 0 && (window->Flags & ImGuiWindowFlags_ChildWindow) == 0 && window != window_to_render_front_most)
+        if (IsWindowActiveAndVisible(window) && (window->Flags & ImGuiWindowFlags_ChildWindow) == 0 && window != window_to_render_front_most)
             AddRootWindowToDrawData(window);
     }
-    if (window_to_render_front_most && window_to_render_front_most->Active && window_to_render_front_most->HiddenFrames == 0) // NavWindowingTarget is always temporarily displayed as the front-most window
+    if (window_to_render_front_most && IsWindowActiveAndVisible(window_to_render_front_most)) // NavWindowingTarget is always temporarily displayed as the front-most window
         AddRootWindowToDrawData(window_to_render_front_most);
 
     // Draw software mouse cursor if requested
@@ -8202,11 +8212,18 @@ ImDrawList* ImGui::GetWindowDrawList()
     return window->DrawList;
 }
 
+float ImGui::GetWindowDpiScale()
+{
+    ImGuiContext& g = *GImGui;
+    IM_ASSERT(g.CurrentViewport != NULL);
+    return g.CurrentViewport->DpiScale;
+}
+
 ImGuiViewport* ImGui::GetWindowViewport()
 {
-    ImGuiWindow* window = GetCurrentWindowRead();
-    IM_ASSERT(window->Viewport != NULL);
-    return window->Viewport;
+    ImGuiContext& g = *GImGui;
+    IM_ASSERT(g.CurrentViewport != NULL && g.CurrentViewport == g.CurrentWindow->Viewport);
+    return g.CurrentViewport;
 }
 
 ImFont* ImGui::GetFont()
