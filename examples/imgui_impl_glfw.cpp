@@ -50,7 +50,7 @@ enum GlfwClientApi
 };
 static GLFWwindow*      g_Window = NULL;
 static GlfwClientApi    g_ClientApi = GlfwClientApi_Unknown;
-static double           g_Time = 0.0f;
+static double           g_Time = 0.0;
 static bool             g_MouseJustPressed[5] = { false, false, false, false, false };
 static GLFWcursor*      g_MouseCursors[ImGuiMouseCursor_Count_] = { 0 };
 static bool             g_WantUpdateMonitors = true;
@@ -116,6 +116,7 @@ void ImGui_ImplGlfw_InstallCallbacks(GLFWwindow* window)
 static bool ImGui_ImplGlfw_Init(GLFWwindow* window, bool install_callbacks, GlfwClientApi client_api)
 {
     g_Window = window;
+    g_Time = 0.0;
 
     // Setup back-end capabilities flags
     ImGuiIO& io = ImGui::GetIO();
@@ -325,9 +326,6 @@ void ImGui_ImplGlfw_NewFrame()
         else
             io.BackendFlags &= ~ImGuiBackendFlags_HasGamepad;
     }
-
-    // Start the frame. This call will update the io.WantCaptureMouse, io.WantCaptureKeyboard flag that you can use to dispatch inputs (or not) to your application.
-    ImGui::NewFrame();
 }
 
 //--------------------------------------------------------------------------------------------------------
