@@ -1,6 +1,7 @@
----------------------------------------
- README FIRST
----------------------------------------
+-----------------------------------------------------------------------
+ examples/README.txt
+ (This is the README file for the examples/ folder. See docs/ for more documentation)
+-----------------------------------------------------------------------
 
 Dear ImGui is highly portable and only requires a few things to run and render:
 
@@ -33,30 +34,24 @@ You can find binaries of some of those example applications at:
  MISC COMMENTS AND SUGGESTIONS
 ---------------------------------------
 
- - Newcomers, read 'PROGRAMMER GUIDE' in imgui.cpp for notes on how to setup ImGui in your codebase.
-
- - Please read the comments and instruction at the top of each file.
-
+ - Please read 'PROGRAMMER GUIDE' in imgui.cpp for notes on how to setup Dear ImGui in your codebase.
+   Please read the comments and instruction at the top of each file.
+   
  - If you are using of the backend provided here, so you can copy the imgui_impl_xxx.cpp/h files
    to your project and use them unmodified. Each imgui_impl_xxxx.cpp comes with its own individual
    ChangeLog at the top of the .cpp files, so if you want to update them later it will be easier to
    catch up with what changed.
 
- - To LEARN how to setup imgui, you may refer to 'opengl2_example/' because is the simplest one to read.
-   However, do NOT USE the OpenGL2 renderer if your code is using any modern GL3+ calls.
-   Mixing old fixed-pipeline OpenGL2 and modern OpenGL3+ is going to make everything more complicated.
-   Read comments below for details. If you are not sure, in doubt, use the OpenGL3 renderer.
-
  - Dear ImGui has 0 to 1 frame of lag for most behaviors, at 60 FPS your experience should be pleasant.
    However, consider that OS mouse cursors are typically drawn through a specific hardware accelerated path
    and will feel smoother than common GPU rendered contents (including Dear ImGui windows). 
-   You may experiment with the io.MouseDrawCursor flag to request ImGui to draw a mouse cursor itself, 
+   You may experiment with the io.MouseDrawCursor flag to request Dear ImGui to draw a mouse cursor itself, 
    to visualize the lag between a hardware cursor and a software cursor. However, rendering a mouse cursor
    at 60 FPS will feel slow. It might be beneficial to the user experience to switch to a software rendered
    cursor only when an interactive drag is in progress. 
    Note that some setup or GPU drivers are likely to be causing extra lag depending on their settings.
-   If you are not sure who to blame if you feeling that dragging something is laggy, try to build an
-   application drawing a shape directly under the mouse cursor. 
+   If you feel that dragging windows feels laggy and you are not sure who to blame: try to build an 
+   application drawing a shape directly under the mouse cursor.
 
 
 ---------------------------------------
@@ -66,13 +61,13 @@ You can find binaries of some of those example applications at:
 Most the example bindings are split in 2 parts:
 
  - The "Platform" bindings, in charge of: mouse/keyboard/gamepad inputs, cursor shape, timing, windowing.
-   Examples: Windows (imgui_impl_win32.cpp), GLFW (imgui_impl_glfw.cpp), SDL2 (imgui_impl_sdl2.cpp)
+   Examples: Windows (imgui_impl_win32.cpp), GLFW (imgui_impl_glfw.cpp), SDL2 (imgui_impl_sdl.cpp)
 
  - The "Renderer" bindings, in charge of: creating the main font texture, rendering imgui draw data.
    Examples: DirectX11 (imgui_impl_dx11.cpp), GL3 (imgui_impl_opengl3.cpp), Vulkan (imgui_impl_vulkan.cpp)
 
  - The example _applications_ usually combine 1 platform + 1 renderer binding to create a working program.
-   Examples: the directx11_example/ application combines imgui_impl_win32.cpp + imgui_impl_dx11.cpp.
+   Examples: the example_win32_directx11/ application combines imgui_impl_win32.cpp + imgui_impl_dx11.cpp.
 
  - Some bindings for higher level frameworks carry both "Platform" and "Renderer" parts in one file.
    This is the case for Allegro 5 (imgui_impl_allegro5.cpp), Marmalade (imgui_impl_marmalade5.cpp).
@@ -83,8 +78,8 @@ Most the example bindings are split in 2 parts:
    imgui_impl_xxxx files to fit under your coding style, consider that it is not necessary!
    In fact, if you are new to Dear ImGui, rewriting them will almost always be harder.
 
-   Example: your engine is built over Windows + DirectX11 but you have your own high-level rendering system 
-   layered over DirectX11.
+   Example: your engine is built over Windows + DirectX11 but you have your own high-level rendering 
+   system layered over DirectX11.
      Suggestion: step 1: try using imgui_impl_win32.cpp + imgui_impl_dx11.cpp first. 
      Once this work, _if_ you want you can replace the imgui_impl_dx11.cpp code with a custom renderer 
      using your own functions, etc. 
@@ -103,37 +98,41 @@ Most the example bindings are split in 2 parts:
    integration. It is also much more complicated and require more work to integrate correctly.
    If you are new to imgui and you are trying to integrate it into your application, first try to ignore
    everything related to Viewport and Platform Windows. You'll be able to come back to it later!
-   Note that if you decide to use unmodified imgui_impl_xxxx.cpp files, you will automatically benefit from 
-   improvements and fixes related to viewports and platform windows without extra work on your side.
+   Note that if you decide to use unmodified imgui_impl_xxxx.cpp files, you will automatically benefit
+   from improvements and fixes related to viewports and platform windows without extra work on your side.
    See 'ImGuiPlatformIO' for details.  
 
-List of officially maintained Platforms Bindings:
 
-    imgui_impl_glfw.cpp
-    imgui_impl_sdl2.cpp
-    imgui_impl_win32.cpp
+List of Platforms Bindings in this repository:
 
-List of officially maintained Renderer Bindings:
+    imgui_impl_glfw.cpp       ; GLFW (Windows, macOS, Linux, etc.) http://www.glfw.org/
+    imgui_impl_osx.mm         ; macOS native API
+    imgui_impl_sdl.cpp        ; SDL2 (Windows, macOS, Linux, iOS, Android) https://www.libsdl.org
+    imgui_impl_win32.cpp      ; Win32 native API (Windows)
+    imgui_impl_freeglut.cpp   ; FreeGLUT (if you really miss the 90's)
 
-    imgui_impl_dx9.cpp
-    imgui_impl_dx10.cpp
-    imgui_impl_dx11.cpp
-    imgui_impl_dx12.cpp
-    imgui_impl_opengl2.cpp
-    imgui_impl_opengl3.cpp
-    imgui_impl_vulkan.cpp
+List of Renderer Bindings in this repository:
 
-List of officially maintained high-level Frameworks Bindings (combine Platform + Renderer)
+    imgui_impl_dx9.cpp        ; DirectX9
+    imgui_impl_dx10.cpp       ; DirectX10
+    imgui_impl_dx11.cpp       ; DirectX11
+    imgui_impl_dx12.cpp       ; DirectX12
+    imgui_impl_metal.mm       ; Metal (with ObjC)
+    imgui_impl_opengl2.cpp    ; OpenGL2 (legacy, fixed pipeline <- don't use with modern OpenGL context)
+    imgui_impl_opengl3.cpp    ; OpenGL3, OpenGL ES 2, OpenGL ES 3 (modern programmable pipeline)
+    imgui_impl_vulkan.cpp     ; Vulkan
+
+List of high-level Frameworks Bindings in this repository: (combine Platform + Renderer)
 
     imgui_impl_allegro5.cpp
     imgui_impl_marmalade.cpp
 
-Third-party framework, graphics API and languages bindings:
+Third-party framework, graphics API and languages bindings are listed at:
 
-    https://github.com/ocornut/imgui/wiki/Links
+    https://github.com/ocornut/imgui/wiki/Bindings
 
     Languages: C, C#, ChaiScript, D, Go, Haxe, Java, Lua, Odin, Pascal, PureBasic, Python, Rust, Swift...
-    Frameworks: FreeGlut, Cinder, Cocos2d-x, Emscripten, SFML, GML/GameMaker Studio, Irrlicht, Ogre, 
+    Frameworks: Cinder, Cocoa (OSX), Cocos2d-x, Emscripten, SFML, GML/GameMaker Studio, Irrlicht, Ogre, 
     OpenSceneGraph, openFrameworks, LOVE, NanoRT, Nim Game Lib, Qt3d, SFML, Unreal Engine 4...
     Miscellaneous: Software Renderer, RemoteImgui, etc.
 
@@ -149,81 +148,90 @@ Building:
    - Makefiles for Linux/OSX
    - Batch files for Visual Studio 2008+
    - A .sln project file for Visual Studio 2010+ 
+   - Xcode project files for the Apple examples
   Please let me know if they don't work with your setup!
   You can probably just import the imgui_impl_xxx.cpp/.h files into your own codebase or compile those
   directly with a command-line compiler.
 
 
-directx9_example/
+example_win32_directx9/
     DirectX9 example, Windows only.
     = main.cpp + imgui_impl_win32.cpp + imgui_impl_dx9.cpp
     
-directx10_example/
+example_win32_directx10/
     DirectX10 example, Windows only.
     = main.cpp + imgui_impl_win32.cpp + imgui_impl_dx10.cpp
 
-directx11_example/
+example_win32_directx11/
     DirectX11 example, Windows only.
     = main.cpp + imgui_impl_win32.cpp + imgui_impl_dx11.cpp
     
-directx12_example/
+example_win32_directx12/
     DirectX12 example, Windows only.
     This is quite long and tedious, because: DirectX12.
     = main.cpp + imgui_impl_win32.cpp + imgui_impl_dx12.cpp
 
-opengl2_example/
-    **DO NOT USE THIS CODE IF YOUR CODE/ENGINE IS USING MODERN OPENGL (SHADERS, VBO, VAO, etc.)**
-    **Prefer using the code in the opengl3_example/ folder**
-    GLFW + OpenGL example (legacy, fixed pipeline).
-    This code is mostly provided as a reference to learn about ImGui integration, because it is shorter.
+example_apple_metal/
+    OSX & iOS + Metal.
+    It is based on the "cross-platform" game template provided with Xcode as of Xcode 9.
+    (NB: you may still want to use GLFW or SDL which will also support Windows, Linux along with OSX.)
+    = game template + imgui_impl_osx.mm + imgui_impl_metal.mm
+
+example_apple_opengl2/
+    OSX + OpenGL2.
+    (NB: you may still want to use GLFW or SDL which will also support Windows, Linux along with OSX.)
+    = main.mm + imgui_impl_osx.mm + imgui_impl_opengl2.cpp
+
+example_glfw_opengl2/
+    **DO NOT USE OPENGL2 CODE IF YOUR CODE/ENGINE IS USING MODERN OPENGL (SHADERS, VBO, VAO, etc.)**
+    **Prefer using OPENGL3 code (with gl3w/glew/glad, you can replace the OpenGL function loader)**
+    GLFW + OpenGL2 example (legacy, fixed pipeline).
+    This code is mostly provided as a reference to learn about Dear ImGui integration, because it is shorter.
     If your code is using GL3+ context or any semi modern OpenGL calls, using this renderer is likely to
     make things more complicated, will require your code to reset many OpenGL attributes to their initial
     state, and might confuse your GPU driver. One star, not recommended.
     = main.cpp + imgui_impl_glfw.cpp + imgui_impl_opengl2.cpp
 
-opengl3_example/
-    GLFW (Win32, Mac, Linux) + OpenGL example (programmable pipeline, binding modern functions with GL3W).
+example_glfw_opengl3/
+    GLFW (Win32, Mac, Linux) + OpenGL3+/ES2/ES3 example (programmable pipeline, binding modern functions with GL3W).
     This uses more modern OpenGL calls and custom shaders. 
     Prefer using that if you are using modern OpenGL in your application (anything with shaders).
     = main.cpp + imgui_impl_glfw.cpp + imgui_impl_opengl3.cpp
 	
-vulkan_example/
-    Vulkan example.
+example_glfw_vulkan/
+    GLFW (Win32, Mac, Linux) + Vulkan example.
     This is quite long and tedious, because: Vulkan.
     = main.cpp + imgui_impl_glfw.cpp + imgui_impl_vulkan.cpp
 
-sdl_opengl2_example/
-    **DO NOT USE THIS CODE IF YOUR CODE/ENGINE IS USING MODERN OPENGL (SHADERS, VBO, VAO, etc.)**
-    **Prefer using the code in the sdl_opengl3_example/ folder**
+example_sdl_opengl2/
+    **DO NOT USE OPENGL2 CODE IF YOUR CODE/ENGINE IS USING MODERN OPENGL (SHADERS, VBO, VAO, etc.)**
+    **Prefer using OPENGL3 code (with gl3w/glew/glad, you can replace the OpenGL function loader)**
     SDL2 (Win32, Mac, Linux etc.) + OpenGL example (legacy, fixed pipeline).
-    This code is mostly provided as a reference to learn about ImGui integration, because it is shorter.
+    This code is mostly provided as a reference to learn about Dear ImGui integration, because it is shorter.
     If your code is using GL3+ context or any semi modern OpenGL calls, using this renderer is likely to
     make things more complicated, will require your code to reset many OpenGL attributes to their initial
     state, and might confuse your GPU driver. One star, not recommended. 
-    = main.cpp + imgui_impl_sdl2.cpp + imgui_impl_opengl2.cpp
+    = main.cpp + imgui_impl_sdl.cpp + imgui_impl_opengl2.cpp
 
-sdl_opengl3_example/
-    SDL2 (Win32, Mac, Linux, etc.) + OpenGL3 example.
+example_sdl_opengl3/
+    SDL2 (Win32, Mac, Linux, etc.) + OpenGL3+/ES2/ES3 example.
     This uses more modern OpenGL calls and custom shaders. 
     Prefer using that if you are using modern OpenGL in your application (anything with shaders).
-    = main.cpp + imgui_impl_sdl2.cpp + imgui_impl_opengl3.cpp
+    = main.cpp + imgui_impl_sdl.cpp + imgui_impl_opengl3.cpp
 
-sdl_vulkan_example/
+example_sdl_vulkan/
     SDL2 (Win32, Mac, Linux, etc.) + Vulkan example.
     This is quite long and tedious, because: Vulkan.
-    = main.cpp + imgui_impl_glfw.cpp + imgui_impl_vulkan.cpp
+    = main.cpp + imgui_impl_sdl.cpp + imgui_impl_vulkan.cpp
 
-apple_example/
-    OSX & iOS example + OpenGL2.
-    THIS EXAMPLE HAS NOT BEEN MAINTAINED PROPERLY AND NEEDS A MAINTAINER.
-    Consider using the opengl3_example/ instead.
-    On iOS, Using Synergy to access keyboard/mouse data from server computer.
-    Synergy keyboard integration is rather hacky.
-
-allegro5_example/
+example_allegro5/
     Allegro 5 example.
     = main.cpp + imgui_impl_allegro5.cpp
 
-marmalade_example/
-    Marmalade example using IwGx
+example_freeglut_opengl2/
+    FreeGLUT + OpenGL2.
+    = main.cpp + imgui_impl_freeglut.cpp + imgui_impl_opengl2.cpp
+
+example_marmalade/
+    Marmalade example using IwGx.
     = main.cpp + imgui_impl_marmalade.cpp
