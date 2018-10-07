@@ -6144,6 +6144,16 @@ bool ImGui::IsWindowFocused(ImGuiFocusedFlags flags)
 	}
 }
 
+bool ImGui::IsWindowOrAnyChildFocused()
+{
+	ImGuiContext& g = *GImGui;
+	IM_ASSERT(g.CurrentWindow);     // Not inside a Begin()/End()
+	ImGuiWindow* window = g.NavWindow;
+	while (window && window != g.CurrentWindow)
+		window = window->ParentWindow;
+	return (window!=NULL);
+}
+
 ImGuiID ImGui::GetWindowDockId()
 {
 	ImGuiContext& g = *GImGui;
