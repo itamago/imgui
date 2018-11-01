@@ -320,13 +320,13 @@ void ImGui_ImplOpenGL3_DestroyFontsTexture()
     }
 }
 
-// If you get an error please report on github. You may try different GL context version or GLSL version.
+// If you get an error please report on github. You may try different GL context version or GLSL version. See GL<>GLSL version table at the top of this file.
 static bool CheckShader(GLuint handle, const char* desc)
 {
     GLint status = 0, log_length = 0;
     glGetShaderiv(handle, GL_COMPILE_STATUS, &status);
     glGetShaderiv(handle, GL_INFO_LOG_LENGTH, &log_length);
-    if (status == GL_FALSE)
+    if ((GLboolean)status == GL_FALSE)
         fprintf(stderr, "ERROR: ImGui_ImplOpenGL3_CreateDeviceObjects: failed to compile %s!\n", desc);
     if (log_length > 0)
     {
@@ -335,17 +335,17 @@ static bool CheckShader(GLuint handle, const char* desc)
         glGetShaderInfoLog(handle, log_length, NULL, (GLchar*)buf.begin());
         fprintf(stderr, "%s\n", buf.begin());
     }
-    return status == GL_TRUE;
+    return (GLboolean)status == GL_TRUE;
 }
 
-// If you get an error please report on github. You may try different GL context version or GLSL version.
+// If you get an error please report on GitHub. You may try different GL context version or GLSL version.
 static bool CheckProgram(GLuint handle, const char* desc)
 {
     GLint status = 0, log_length = 0;
     glGetProgramiv(handle, GL_LINK_STATUS, &status);
     glGetProgramiv(handle, GL_INFO_LOG_LENGTH, &log_length);
-    if (status == GL_FALSE)
-        fprintf(stderr, "ERROR: ImGui_ImplOpenGL3_CreateDeviceObjects: failed to link %s!\n", desc);
+    if ((GLboolean)status == GL_FALSE)
+        fprintf(stderr, "ERROR: ImGui_ImplOpenGL3_CreateDeviceObjects: failed to link %s! (with GLSL '%s')\n", desc, g_GlslVersionString);
     if (log_length > 0)
     {
         ImVector<char> buf;
@@ -353,7 +353,7 @@ static bool CheckProgram(GLuint handle, const char* desc)
         glGetProgramInfoLog(handle, log_length, NULL, (GLchar*)buf.begin());
         fprintf(stderr, "%s\n", buf.begin());
     }
-    return status == GL_TRUE;
+    return (GLboolean)status == GL_TRUE;
 }
 
 bool    ImGui_ImplOpenGL3_CreateDeviceObjects()
