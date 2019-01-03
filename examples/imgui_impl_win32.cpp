@@ -20,6 +20,7 @@
 // CHANGELOG
 // (minor and older changes stripped away, please see git history for details)
 //  2018-XX-XX: Platform: Added support for multiple windows via the ImGuiPlatformIO interface.
+//  2018-11-30: Misc: Setting up io.BackendPlatformName so it can be displayed in the About Window.
 //  2018-06-29: Inputs: Added support for the ImGuiMouseCursor_Hand cursor.
 //  2018-06-10: Inputs: Fixed handling of mouse wheel messages to support fine position messages (typically sent by track-pads).
 //  2018-06-08: Misc: Extracted imgui_impl_win32.cpp/.h away from the old combined DX9/DX10/DX11/DX12 examples.
@@ -61,6 +62,7 @@ bool    ImGui_ImplWin32_Init(void* hwnd)
     io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;          // We can honor io.WantSetMousePos requests (optional, rarely used)
     io.BackendFlags |= ImGuiBackendFlags_PlatformHasViewports;    // We can create multi-viewports on the Platform side (optional)
     io.BackendFlags |= ImGuiBackendFlags_HasMouseHoveredViewport; // We can set io.MouseHoveredViewport correctly (optional, not easy)
+    io.BackendPlatformName = "imgui_impl_win32";
 
     // Our mouse update function expect PlatformHandle to be filled for the main viewport
     g_hWnd = (HWND)hwnd;
@@ -133,21 +135,14 @@ static bool ImGui_ImplWin32_UpdateMouseCursor()
     return true;
 }
 
-// This code supports multiple OS Windows mapped into different ImGui viewports, 
-// Because of that, it is a little more complicated than your typical single-viewport binding code.
-// A) In Single-viewport mode imgui needs:
-//   - io.MousePos ............... mouse position, in client window coordinates (what you'd get from GetCursorPos+ScreenToClient() or from WM_MOUSEMOVE) 
-//                                 io.MousePos is (0,0) when the mouse is on the upper-left corner of the application window.
-// B) In Multi-viewport mode imgui needs: (when ImGuiConfigFlags_ViewportsEnable is set)
-//   - io.MousePos ............... mouse position, in OS absolute coordinates (what you'd get from GetCursorPos(), or from WM_MOUSEMOVE+viewport->Pos). 
-//                                 io.MousePos is (0,0) when the mouse is on the upper-left of the primary monitor.
-//   - io.MouseHoveredViewport ... [optional] viewport which mouse is hovering, with _VERY_ specific and strict conditions (Read comments next to io.MouseHoveredViewport. This is _NOT_ easy to provide in many high-level engine because of how we use the ImGuiViewportFlags_NoInputs flag)
+// This code supports multi-viewports (multiple OS Windows mapped into different Dear ImGui viewports)
+// Because of that, it is a little more complicated than your typical single-viewport binding code!
 static void ImGui_ImplWin32_UpdateMousePos()
 {
     ImGuiIO& io = ImGui::GetIO();
 
     // Set OS mouse position if requested (rarely used, only when ImGuiConfigFlags_NavEnableSetMousePos is enabled by user)
-    // (When multi-viewports are enabled, all imgui positions are same as OS positions.)
+    // (When multi-viewports are enabled, all imgui positions are same as OS positions)
     if (io.WantSetMousePos)
     {
         POINT pos = { (int)io.MousePos.x, (int)io.MousePos.y };
@@ -159,28 +154,48 @@ static void ImGui_ImplWin32_UpdateMousePos()
     io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
     io.MouseHoveredViewport = 0;
 
-    // Set mouse position and viewport
-    // (Note that ScreenToClient() and adding +viewport->Pos are mutually cancelling each others when we have multi-viewport enabled. In single-viewport mode, viewport->Pos will be zero)
-    POINT pos;
-    if (!::GetCursorPos(&pos))
+    // Set imgui mouse position
+    POINT mouse_screen_pos;
+    if (!::GetCursorPos(&mouse_screen_pos))
         return;
     if (HWND focused_hwnd = ::GetActiveWindow())
-        if (ImGuiViewport* viewport = ImGui::FindViewportByPlatformHandle((void*)focused_hwnd))
+    {
+        if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
         {
-            POINT client_pos = pos;
-            ::ScreenToClient(focused_hwnd, &client_pos);
-            io.MousePos = ImVec2(viewport->Pos.x + (float)client_pos.x, viewport->Pos.y + (float)client_pos.y);
+            // Multi-viewport mode: mouse position in OS absolute coordinates (io.MousePos is (0,0) when the mouse is on the upper-left of the primary monitor)
+            // This is the position you can get with GetCursorPos(). In theory adding viewport->Pos is also the reverse operation of doing ScreenToClient().
+            if (ImGui::FindViewportByPlatformHandle((void*)focused_hwnd) != NULL)
+                io.MousePos = ImVec2((float)mouse_screen_pos.x, (float)mouse_screen_pos.y);
         }
+        else
+        {
+            // Single viewport mode: mouse position in client window coordinates (io.MousePos is (0,0) when the mouse is on the upper-left corner of the app window.)
+            // This is the position you can get with GetCursorPos() + ScreenToClient() or from WM_MOUSEMOVE.
+            if (focused_hwnd == g_hWnd)
+            {
+                POINT mouse_client_pos = mouse_screen_pos;
+                ::ScreenToClient(focused_hwnd, &mouse_client_pos);
+                io.MousePos = ImVec2((float)mouse_client_pos.x, (float)mouse_client_pos.y);
+            }
+        }
+    }
 
-    // Our back-end can tell which window is under the mouse cursor (not every back-end can), so pass that info to imgui
-    if (HWND hovered_hwnd = ::WindowFromPoint(pos))
+    // (Optional) When using multiple viewports: set io.MouseHoveredViewport to the viewport the OS mouse cursor is hovering.
+    // Important: this information is not easy to provide and many high-level windowing library won't be able to provide it correctly, because
+    // - This is _ignoring_ viewports with the ImGuiViewportFlags_NoInputs flag (pass-through windows).
+    // - This is _regardless_ of whether another viewport is focused or being dragged from.
+    // If ImGuiBackendFlags_HasMouseHoveredViewport is not set by the back-end, imgui will ignore this field and infer the information by relying on the
+    // rectangles and last focused time of every viewports it knows about. It will be unaware of foreign windows that may be sitting between or over your windows.
+    if (HWND hovered_hwnd = ::WindowFromPoint(mouse_screen_pos))
         if (ImGuiViewport* viewport = ImGui::FindViewportByPlatformHandle((void*)hovered_hwnd))
-            io.MouseHoveredViewport = viewport->ID;
+            if ((viewport->Flags & ImGuiViewportFlags_NoInputs) == 0) // FIXME: We still get our NoInputs window with WM_NCHITTEST/HTTRANSPARENT code when decorated?
+                io.MouseHoveredViewport = viewport->ID;
 }
 
 void    ImGui_ImplWin32_NewFrame()
 {
     ImGuiIO& io = ImGui::GetIO();
+    IM_ASSERT(io.Fonts->IsBuilt() && "Font atlas not built! It is generally built by the renderer back-end. Missing call to renderer _NewFrame() function? e.g. ImGui_ImplOpenGL3_NewFrame().");
 
     // Setup display size (every frame to accommodate for window resizing)
     RECT rect;
@@ -353,7 +368,7 @@ void ImGui_ImplWin32_EnableDpiAwareness()
 float ImGui_ImplWin32_GetDpiScaleForMonitor(void* monitor)
 {
     UINT xdpi = 96, ydpi = 96;
-    if (IsWindows8Point1OrGreater())
+    if (::IsWindows8Point1OrGreater())
     {
         static HINSTANCE shcore_dll = ::LoadLibraryA("shcore.dll"); // Reference counted per-process
         if (PFN_GetDpiForMonitor GetDpiForMonitorFn = (PFN_GetDpiForMonitor)::GetProcAddress(shcore_dll, "GetDpiForMonitor"))
@@ -376,18 +391,11 @@ float ImGui_ImplWin32_GetDpiScaleForHwnd(void* hwnd)
     return ImGui_ImplWin32_GetDpiScaleForMonitor(monitor);
 }
 
-float ImGui_ImplWin32_GetDpiScaleForRect(int x1, int y1, int x2, int y2)
-{
-    RECT viewport_rect = { (LONG)x1, (LONG)y1, (LONG)x2, (LONG)y2 };
-    HMONITOR monitor = ::MonitorFromRect(&viewport_rect, MONITOR_DEFAULTTONEAREST);
-    return ImGui_ImplWin32_GetDpiScaleForMonitor(monitor);
-}
-
 //--------------------------------------------------------------------------------------------------------
 // IME (Input Method Editor) basic support for e.g. Asian language users
 //--------------------------------------------------------------------------------------------------------
 
-#if defined(_WIN32) && !defined(IMGUI_DISABLE_WIN32_DEFAULT_IME_FUNCTIONS) && !defined(__GNUC__)
+#if defined(_WIN32) && !defined(IMGUI_DISABLE_WIN32_FUNCTIONS) && !defined(IMGUI_DISABLE_WIN32_DEFAULT_IME_FUNCTIONS) && !defined(__GNUC__)
 #define HAS_WIN32_IME   1
 #include <imm.h>
 #ifdef _MSC_VER
@@ -424,33 +432,41 @@ struct ImGuiViewportDataWin32
     ~ImGuiViewportDataWin32() { IM_ASSERT(Hwnd == NULL); }
 };
 
+static void ImGui_ImplWin32_GetWin32StyleFromViewportFlags(ImGuiViewportFlags flags, DWORD* out_style, DWORD* out_ex_style)
+{
+    if (flags & ImGuiViewportFlags_NoDecoration)
+        *out_style = WS_POPUP;
+    else
+        *out_style = WS_OVERLAPPEDWINDOW;
+
+    if (flags & ImGuiViewportFlags_NoTaskBarIcon)
+        *out_ex_style = WS_EX_TOOLWINDOW;
+    else
+        *out_ex_style = WS_EX_APPWINDOW;
+
+    if (flags & ImGuiViewportFlags_TopMost)
+        *out_ex_style |= WS_EX_TOPMOST;
+}
+
 static void ImGui_ImplWin32_CreateWindow(ImGuiViewport* viewport)
 {
     ImGuiViewportDataWin32* data = IM_NEW(ImGuiViewportDataWin32)();
     viewport->PlatformUserData = data;
 
-    bool no_decoration = (viewport->Flags & ImGuiViewportFlags_NoDecoration) != 0;
-    bool no_task_bar_icon = (viewport->Flags & ImGuiViewportFlags_NoTaskBarIcon) != 0;
-    if (no_decoration)
-    {
-        data->DwStyle = WS_POPUP;
-        data->DwExStyle = no_task_bar_icon ? WS_EX_TOOLWINDOW : WS_EX_APPWINDOW;
-    }
-    else
-    {
-        data->DwStyle = WS_OVERLAPPEDWINDOW;
-        data->DwExStyle = no_task_bar_icon ? WS_EX_TOOLWINDOW : WS_EX_APPWINDOW;
-    }
-    if (viewport->Flags & ImGuiViewportFlags_TopMost)
-        data->DwExStyle |= WS_EX_TOPMOST;
+    // Select style and parent window
+    ImGui_ImplWin32_GetWin32StyleFromViewportFlags(viewport->Flags, &data->DwStyle, &data->DwExStyle);
+    HWND parent_window = NULL;
+    if (viewport->ParentViewportId != 0)
+        if (ImGuiViewport* parent_viewport = ImGui::FindViewportByID(viewport->ParentViewportId))
+            parent_window = (HWND)parent_viewport->PlatformHandle;
 
     // Create window
     RECT rect = { (LONG)viewport->Pos.x, (LONG)viewport->Pos.y, (LONG)(viewport->Pos.x + viewport->Size.x), (LONG)(viewport->Pos.y + viewport->Size.y) };
     ::AdjustWindowRectEx(&rect, data->DwStyle, FALSE, data->DwExStyle);
     data->Hwnd = ::CreateWindowEx(
-        data->DwExStyle, _T("ImGui Platform"), _T("No Title Yet"), data->DwStyle,   // Style, class name, window name
-        rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top,        // Window area
-        g_hWnd, NULL, ::GetModuleHandle(NULL), NULL);                               // Parent window, Menu, Instance, Param
+        data->DwExStyle, _T("ImGui Platform"), _T("Untitled"), data->DwStyle,   // Style, class name, window name
+        rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top,    // Window area
+        parent_window, NULL, ::GetModuleHandle(NULL), NULL);                    // Parent window, Menu, Instance, Param
     data->HwndOwned = true;
     viewport->PlatformRequestResize = false;
     viewport->PlatformHandle = data->Hwnd;
@@ -482,6 +498,31 @@ static void ImGui_ImplWin32_ShowWindow(ImGuiViewport* viewport)
         ::ShowWindow(data->Hwnd, SW_SHOWNA);
     else
         ::ShowWindow(data->Hwnd, SW_SHOW);
+}
+
+static void ImGui_ImplWin32_UpdateWindow(ImGuiViewport* viewport)
+{
+    // (Optional) Update Win32 style if it changed _after_ creation. 
+    // Generally they won't change unless configuration flags are changed, but advanced uses (such as manually rewriting viewport flags) make this useful.
+    ImGuiViewportDataWin32* data = (ImGuiViewportDataWin32*)viewport->PlatformUserData;
+    IM_ASSERT(data->Hwnd != 0);
+    DWORD new_style;
+    DWORD new_ex_style;
+    ImGui_ImplWin32_GetWin32StyleFromViewportFlags(viewport->Flags, &new_style, &new_ex_style);
+
+    // Only reapply the flags that have been changed from our point of view (as other flags are being modified by Windows)
+    if (data->DwStyle != new_style || data->DwExStyle != new_ex_style)
+    {
+        data->DwStyle = new_style;
+        data->DwExStyle = new_ex_style;
+        ::SetWindowLong(data->Hwnd, GWL_STYLE, data->DwStyle);
+        ::SetWindowLong(data->Hwnd, GWL_EXSTYLE, data->DwExStyle);
+        RECT rect = { (LONG)viewport->Pos.x, (LONG)viewport->Pos.y, (LONG)(viewport->Pos.x + viewport->Size.x), (LONG)(viewport->Pos.y + viewport->Size.y) };
+        ::AdjustWindowRectEx(&rect, data->DwStyle, FALSE, data->DwExStyle); // Client to Screen
+        ::SetWindowPos(data->Hwnd, NULL, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+        ::ShowWindow(data->Hwnd, SW_SHOWNA); // This is necessary when we alter the style
+        viewport->PlatformRequestMove = viewport->PlatformRequestResize = true;
+    }
 }
 
 static ImVec2 ImGui_ImplWin32_GetWindowPos(ImGuiViewport* viewport)
@@ -536,11 +577,23 @@ static bool ImGui_ImplWin32_GetWindowFocus(ImGuiViewport* viewport)
     return ::GetActiveWindow() == data->Hwnd;
 }
 
-static void ImGui_ImplWin32_SetWindowTitle(ImGuiViewport* viewport, const char* title)
+static bool ImGui_ImplWin32_GetWindowMinimized(ImGuiViewport* viewport)
 {
     ImGuiViewportDataWin32* data = (ImGuiViewportDataWin32*)viewport->PlatformUserData;
     IM_ASSERT(data->Hwnd != 0);
-    ::SetWindowTextA(data->Hwnd, title);
+    return ::IsIconic(data->Hwnd) != 0;
+}
+
+static void ImGui_ImplWin32_SetWindowTitle(ImGuiViewport* viewport, const char* title)
+{
+    // ::SetWindowTextA() doesn't properly handle UTF-8 so we explicitely convert our string.
+    ImGuiViewportDataWin32* data = (ImGuiViewportDataWin32*)viewport->PlatformUserData;
+    IM_ASSERT(data->Hwnd != 0);
+    int n = ::MultiByteToWideChar(CP_UTF8, 0, title, -1, NULL, 0);
+    ImVector<wchar_t> title_w;
+    title_w.resize(n);
+    ::MultiByteToWideChar(CP_UTF8, 0, title, -1, title_w.Data, n);
+    ::SetWindowTextW(data->Hwnd, title_w.Data);
 }
 
 static void ImGui_ImplWin32_SetWindowAlpha(ImGuiViewport* viewport, float alpha)
@@ -564,13 +617,8 @@ static void ImGui_ImplWin32_SetWindowAlpha(ImGuiViewport* viewport, float alpha)
 static float ImGui_ImplWin32_GetWindowDpiScale(ImGuiViewport* viewport)
 {
     ImGuiViewportDataWin32* data = (ImGuiViewportDataWin32*)viewport->PlatformUserData;
-    if (data && data->Hwnd)
-        return ImGui_ImplWin32_GetDpiScaleForHwnd(data->Hwnd);
-
-    // The first frame a viewport is created we don't have a window yet
-    return ImGui_ImplWin32_GetDpiScaleForRect(
-        (int)(viewport->Pos.x), (int)(viewport->Pos.y),
-        (int)(viewport->Pos.x + viewport->Size.x), (int)(viewport->Pos.y + viewport->Size.y));
+    IM_ASSERT(data->Hwnd != 0);
+    return ImGui_ImplWin32_GetDpiScaleForHwnd(data->Hwnd);
 }
 
 // FIXME-DPI: Testing DPI related ideas
@@ -678,9 +726,11 @@ static void ImGui_ImplWin32_InitPlatformInterface()
     platform_io.Platform_GetWindowSize = ImGui_ImplWin32_GetWindowSize;
     platform_io.Platform_SetWindowFocus = ImGui_ImplWin32_SetWindowFocus;
     platform_io.Platform_GetWindowFocus = ImGui_ImplWin32_GetWindowFocus;
+    platform_io.Platform_GetWindowMinimized = ImGui_ImplWin32_GetWindowMinimized;
     platform_io.Platform_SetWindowTitle = ImGui_ImplWin32_SetWindowTitle;
     platform_io.Platform_SetWindowAlpha = ImGui_ImplWin32_SetWindowAlpha;
-    platform_io.Platform_GetWindowDpiScale = ImGui_ImplWin32_GetWindowDpiScale;
+    platform_io.Platform_UpdateWindow = ImGui_ImplWin32_UpdateWindow;
+    platform_io.Platform_GetWindowDpiScale = ImGui_ImplWin32_GetWindowDpiScale; // FIXME-DPI
     platform_io.Platform_OnChangedViewport = ImGui_ImplWin32_OnChangedViewport; // FIXME-DPI
 #if HAS_WIN32_IME
     platform_io.Platform_SetImeInputPos = ImGui_ImplWin32_SetImeInputPos;

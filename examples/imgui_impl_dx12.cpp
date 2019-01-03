@@ -12,6 +12,8 @@
 
 // CHANGELOG
 // (minor and older changes stripped away, please see git history for details)
+//  2018-12-03: Misc: Added #pragma comment statement to automatically link with d3dcompiler.lib when using D3DCompile().
+//  2018-11-30: Misc: Setting up io.BackendRendererName so it can be displayed in the About Window.
 //  2018-06-12: DirectX12: Moved the ID3D12GraphicsCommandList* parameter from NewFrame() to RenderDrawData().
 //  2018-06-08: Misc: Extracted imgui_impl_dx12.cpp/.h away from the old combined DX12+Win32 example.
 //  2018-06-08: DirectX12: Use draw_data->DisplayPos and draw_data->DisplaySize to setup projection matrix and clipping rectangle (to ease support for future multi-viewport).
@@ -24,6 +26,9 @@
 #include <d3d12.h>
 #include <dxgi1_4.h>
 #include <d3dcompiler.h>
+#ifdef _MSC_VER
+#pragma comment(lib, "d3dcompiler") // Automatically link with d3dcompiler.lib as we are using D3DCompile() below.
+#endif
 
 // DirectX data
 static ID3D12Device*                g_pd3dDevice = NULL;
@@ -590,6 +595,11 @@ void    ImGui_ImplDX12_InvalidateDeviceObjects()
 bool ImGui_ImplDX12_Init(ID3D12Device* device, int num_frames_in_flight, DXGI_FORMAT rtv_format,
                          D3D12_CPU_DESCRIPTOR_HANDLE font_srv_cpu_desc_handle, D3D12_GPU_DESCRIPTOR_HANDLE font_srv_gpu_desc_handle)
 {
+    // Setup back-end capabilities flags
+    ImGuiIO& io = ImGui::GetIO();
+    io.BackendFlags |= ImGuiBackendFlags_RendererHasViewports;    // We can create multi-viewports on the Renderer side (optional) // FIXME-VIEWPORT: Actually unfinished..
+    io.BackendRendererName = "imgui_impl_dx12";
+
     g_pd3dDevice = device;
     g_RTVFormat = rtv_format;
     g_hFontSrvCpuDescHandle = font_srv_cpu_desc_handle;
@@ -607,10 +617,6 @@ bool ImGui_ImplDX12_Init(ID3D12Device* device, int num_frames_in_flight, DXGI_FO
         g_pFrameResources[i].IndexBufferSize = 10000;
     }
 
-    // Setup back-end capabilities flags
-    // FIXME-VIEWPORT: Actually unfinished..
-    ImGuiIO& io = ImGui::GetIO();
-    io.BackendFlags |= ImGuiBackendFlags_RendererHasViewports;    // We can create multi-viewports on the Renderer side (optional)
     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
         ImGui_ImplDX12_InitPlatformInterface();
 
@@ -731,18 +737,22 @@ static void ImGui_ImplDX12_SetWindowSize(ImGuiViewport* viewport, ImVec2 size)
     */
 }
 
-static void ImGui_ImplDX12_RenderWindow(ImGuiViewport* viewport, void*)
+// arg = ID3D12GraphicsCommandList*
+static void ImGui_ImplDX12_RenderWindow(ImGuiViewport* viewport, void* renderer_arg)
 {
     ImGuiViewportDataDx12* data = (ImGuiViewportDataDx12*)viewport->RendererUserData;
     IM_ASSERT(0);
     (void)data;
+
+    ID3D12GraphicsCommandList* command_list = (ID3D12GraphicsCommandList*)renderer_arg;
+
     /*
     ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
     g_pd3dDeviceContext->OMSetRenderTargets(1, &data->RTView, NULL);
     if (!(viewport->Flags & ImGuiViewportFlags_NoRendererClear))
         g_pd3dDeviceContext->ClearRenderTargetView(data->RTView, (float*)&clear_color);
     */
-    ImGui_ImplDX12_RenderDrawData(viewport->DrawData);
+    ImGui_ImplDX12_RenderDrawData(viewport->DrawData, command_list);
 }
 
 static void ImGui_ImplDX12_SwapBuffers(ImGuiViewport* viewport, void*)

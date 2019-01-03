@@ -38,9 +38,9 @@ static D3D12_CPU_DESCRIPTOR_HANDLE  g_mainRenderTargetDescriptor[NUM_BACK_BUFFER
 
 void CreateRenderTarget()
 {
-    ID3D12Resource* pBackBuffer;
     for (UINT i = 0; i < NUM_BACK_BUFFERS; i++)
     {
+        ID3D12Resource* pBackBuffer = NULL;
         g_pSwapChain->GetBuffer(i, IID_PPV_ARGS(&pBackBuffer));
         g_pd3dDevice->CreateRenderTargetView(pBackBuffer, NULL, g_mainRenderTargetDescriptor[i]);
         g_mainRenderTargetResource[i] = pBackBuffer;
@@ -286,7 +286,7 @@ int main(int, char**)
     ShowWindow(hwnd, SW_SHOWDEFAULT);
     UpdateWindow(hwnd);
 
-    // Setup Dear ImGui binding
+    // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
@@ -296,15 +296,24 @@ int main(int, char**)
     //io.ConfigFlags |= ImGuiConfigFlags_ViewportsNoTaskBarIcons;
     //io.ConfigFlags |= ImGuiConfigFlags_ViewportsNoMerge;
 
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+    //ImGui::StyleColorsClassic();
+
+    // When viewports are enabled we tweak WindowRounding/WindowBg so platform windows can look identical to regular ones.
+    ImGuiStyle& style = ImGui::GetStyle();
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+    {
+        style.WindowRounding = 0.0f;
+        style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+    }
+
+    // Setup Platform/Renderer bindings
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX12_Init(g_pd3dDevice, NUM_FRAMES_IN_FLIGHT, 
         DXGI_FORMAT_R8G8B8A8_UNORM,
         g_pd3dSrvDescHeap->GetCPUDescriptorHandleForHeapStart(), 
         g_pd3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart());
-
-    // Setup style
-    ImGui::StyleColorsDark();
-    //ImGui::StyleColorsClassic();
 
     // Load Fonts
     // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them. 
@@ -415,7 +424,7 @@ int main(int, char**)
         if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
         {
             ImGui::UpdatePlatformWindows();
-            ImGui::RenderPlatformWindowsDefault();
+            ImGui::RenderPlatformWindowsDefault(NULL, (void*)g_pd3dCommandList);
         }
 
         g_pSwapChain->Present(1, 0); // Present with vsync
