@@ -7950,21 +7950,8 @@ static void ImGui::UpdateSelectWindowViewport(ImGuiWindow* window)
     }
     else if (g.MovingWindow && g.MovingWindow->RootWindow == window && IsMousePosValid())
     {
-#if 1
-        // Transition to our own viewport when leaving our host boundaries + set the NoInputs flag (which will be cleared in UpdateMovingWindow when releasing the mouse)
-        // If we are already in our own viewport, if need to set the NoInputs flag.
-        // If we have no viewport (which happens when detaching a docked node) immediately create one.
-        // We test for 'window->Viewport->Window == window' instead of 'window->ViewportOwned' because ViewportOwned is not valid during this function.
-        bool has_viewport = (window->Viewport != NULL);
-        bool own_viewport = has_viewport && (window->Viewport->Window == window);
-        bool leave_host_viewport = has_viewport && !own_viewport && !window->Viewport->GetRect().Contains(window->Rect());
-        bool move_from_own_viewport = has_viewport && own_viewport && !(window->Viewport->Flags & ImGuiViewportFlags_NoInputs);
-        if (!has_viewport || leave_host_viewport || move_from_own_viewport)
-            window->Viewport = AddUpdateViewport(window, window->ID, window->Pos, window->Size, ImGuiViewportFlags_NoFocusOnAppearing | ImGuiViewportFlags_NoInputs);
-#else
         if (window->Viewport != NULL && window->Viewport->Window == window)
             window->Viewport = AddUpdateViewport(window, window->ID, window->Pos, window->Size, ImGuiViewportFlags_None);
-#endif
     }
     else
     {
