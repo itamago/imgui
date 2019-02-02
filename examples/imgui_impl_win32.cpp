@@ -447,6 +447,10 @@ void ImGui_ImplWin32_EnableDpiAwareness()
     }
 }
 
+#ifdef _MSC_VER
+#pragma comment(lib, "gdi32")   // GetDeviceCaps()
+#endif
+
 float ImGui_ImplWin32_GetDpiScaleForMonitor(void* monitor)
 {
     UINT xdpi = 96, ydpi = 96;
@@ -736,6 +740,10 @@ static LRESULT CALLBACK ImGui_ImplWin32_WndProcHandler_PlatformWindow(HWND hWnd,
             break;
         case WM_SIZE:
             viewport->PlatformRequestResize = true;
+            break;
+        case WM_MOUSEACTIVATE:
+            if (viewport->Flags & ImGuiViewportFlags_NoFocusOnClick)
+                return MA_NOACTIVATE;
             break;
         case WM_NCHITTEST:
             // Let mouse pass-through the window. This will allow the back-end to set io.MouseHoveredViewport properly (which is OPTIONAL).

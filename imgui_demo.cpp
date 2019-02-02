@@ -355,6 +355,8 @@ void ImGui::ShowDemoWindow(bool* p_open)
                 ImGui::SameLine(); ShowHelpMarker("Enable docking when holding Shift only (allows to drop in wider space, reduce visual noise)");
                 ImGui::Checkbox("io.ConfigDockingTabBarOnSingleWindows", &io.ConfigDockingTabBarOnSingleWindows);
                 ImGui::SameLine(); ShowHelpMarker("Create a docking node and tab-bar on single floating windows.");
+                ImGui::Checkbox("io.ConfigDockingTransparentPayload", &io.ConfigDockingTransparentPayload);
+                ImGui::SameLine(); ShowHelpMarker("Make window or viewport transparent when docking and only display docking boxes on the target viewport. Useful if rendering of multiple viewport cannot be synced. Best used with ConfigViewportsNoAutoMerge.");
                 ImGui::Unindent();
             }
 
@@ -387,6 +389,7 @@ void ImGui::ShowDemoWindow(bool* p_open)
 
         if (ImGui::TreeNode("Backend Flags"))
         {
+            ShowHelpMarker("Those flags are set by the back-ends (imgui_impl_xxx files) to specify their capabilities.");
             ImGuiBackendFlags backend_flags = io.BackendFlags; // Make a local copy to avoid modifying the back-end flags.
             ImGui::CheckboxFlags("io.BackendFlags: HasGamepad", (unsigned int *)&backend_flags, ImGuiBackendFlags_HasGamepad);
             ImGui::CheckboxFlags("io.BackendFlags: HasMouseCursors", (unsigned int *)&backend_flags, ImGuiBackendFlags_HasMouseCursors);
@@ -932,12 +935,13 @@ static void ShowDemoWindowWidgets()
                 ImGui::PushID(i);
                 if (ImGui::Selectable("Sailor", &selected[i], 0, ImVec2(50,50)))
                 {
+                    // Note: We _unnecessarily_ test for both x/y and i here only to silence some static analyzer. The second part of each test is unnecessary.
                     int x = i % 4;
                     int y = i / 4;
-                    if (x > 0) { selected[i - 1] ^= 1; }
-                    if (x < 3) { selected[i + 1] ^= 1; }
-                    if (y > 0) { selected[i - 4] ^= 1; }
-                    if (y < 3) { selected[i + 4] ^= 1; }
+                    if (x > 0)           { selected[i - 1] ^= 1; }
+                    if (x < 3 && i < 15) { selected[i + 1] ^= 1; }
+                    if (y > 0 && i > 3)  { selected[i - 4] ^= 1; }
+                    if (y < 3 && i < 12) { selected[i + 4] ^= 1; }
                 }
                 if ((i % 4) < 3) ImGui::SameLine();
                 ImGui::PopID();
@@ -1086,16 +1090,18 @@ static void ShowDemoWindowWidgets()
 
         ImGui::Text("Color button with Custom Picker Popup:");
 
-        // Generate a dummy palette
-        static bool saved_palette_inited = false;
-        static ImVec4 saved_palette[32];
-        if (!saved_palette_inited)
+        // Generate a dummy default palette. The palette will persist and can be edited.
+        static bool saved_palette_init = true;
+        static ImVec4 saved_palette[32] = { };
+        if (saved_palette_init)
+        {
             for (int n = 0; n < IM_ARRAYSIZE(saved_palette); n++)
             {
                 ImGui::ColorConvertHSVtoRGB(n / 31.0f, 0.8f, 0.8f, saved_palette[n].x, saved_palette[n].y, saved_palette[n].z);
                 saved_palette[n].w = 1.0f; // Alpha
             }
-        saved_palette_inited = true;
+            saved_palette_init = false;
+        }
 
         static ImVec4 backup_color;
         bool open_popup = ImGui::ColorButton("MyColor##3b", color, misc_flags);
@@ -1108,12 +1114,12 @@ static void ShowDemoWindowWidgets()
         }
         if (ImGui::BeginPopup("mypicker"))
         {
-            // FIXME: Adding a drag and drop example here would be perfect!
             ImGui::Text("MY CUSTOM COLOR PICKER WITH AN AMAZING PALETTE!");
             ImGui::Separator();
             ImGui::ColorPicker4("##picker", (float*)&color, misc_flags | ImGuiColorEditFlags_NoSidePreview | ImGuiColorEditFlags_NoSmallPreview);
             ImGui::SameLine();
-            ImGui::BeginGroup();
+
+            ImGui::BeginGroup(); // Lock X position
             ImGui::Text("Current");
             ImGui::ColorButton("##current", color, ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_AlphaPreviewHalf, ImVec2(60,40));
             ImGui::Text("Previous");
@@ -1129,6 +1135,8 @@ static void ShowDemoWindowWidgets()
                 if (ImGui::ColorButton("##palette", saved_palette[n], ImGuiColorEditFlags_NoAlpha | ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_NoTooltip, ImVec2(20,20)))
                     color = ImVec4(saved_palette[n].x, saved_palette[n].y, saved_palette[n].z, color.w); // Preserve alpha!
 
+                // Allow user to drop colors into each palette entry
+                // (Note that ColorButton is already a drag source by default, unless using ImGuiColorEditFlags_NoDragDrop)
                 if (ImGui::BeginDragDropTarget())
                 {
                     if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(IMGUI_PAYLOAD_TYPE_COLOR_3F))
@@ -2227,13 +2235,24 @@ static void ShowDemoWindowPopups()
 
         if (ImGui::Button("Stacked modals.."))
             ImGui::OpenPopup("Stacked 1");
-        if (ImGui::BeginPopupModal("Stacked 1"))
+        if (ImGui::BeginPopupModal("Stacked 1", NULL, ImGuiWindowFlags_MenuBar))
         {
+            if (ImGui::BeginMenuBar())
+            {
+                if (ImGui::BeginMenu("File"))
+                {
+                    if (ImGui::MenuItem("Dummy menu item")) {}
+                    ImGui::EndMenu();
+                }
+                ImGui::EndMenuBar();
+            }
             ImGui::Text("Hello from Stacked The First\nUsing style.Colors[ImGuiCol_ModalWindowDimBg] behind it.");
+
+            // Testing behavior of widgets stacking their own regular popups over the modal.
             static int item = 1;
-            ImGui::Combo("Combo", &item, "aaaa\0bbbb\0cccc\0dddd\0eeee\0\0");
             static float color[4] = { 0.4f,0.7f,0.0f,0.5f };
-            ImGui::ColorEdit4("color", color);  // This is to test behavior of stacked regular popups over a modal
+            ImGui::Combo("Combo", &item, "aaaa\0bbbb\0cccc\0dddd\0eeee\0\0");
+            ImGui::ColorEdit4("color", color);
 
             if (ImGui::Button("Add another modal.."))
                 ImGui::OpenPopup("Stacked 2");
@@ -2711,9 +2730,6 @@ void ImGui::ShowAboutWindow(bool* p_open)
 #ifdef IMGUI_HAS_DOCK
         ImGui::Text("define: IMGUI_HAS_DOCK");
 #endif
-#ifdef IMGUI_HAS_TABS
-        ImGui::Text("define: IMGUI_HAS_TABS");
-#endif
         ImGui::Separator();
         ImGui::Text("io.BackendPlatformName: %s", io.BackendPlatformName ? io.BackendPlatformName : "NULL");
         ImGui::Text("io.BackendRendererName: %s", io.BackendRendererName ? io.BackendRendererName : "NULL");
@@ -2737,10 +2753,6 @@ void ImGui::ShowAboutWindow(bool* p_open)
         if (io.ConfigDockingWithShift)                                  ImGui::Text("io.ConfigDockingWithShift");
         if (io.ConfigDockingTabBarOnSingleWindows)                      ImGui::Text("io.ConfigDockingTabBarOnSingleWindows");
         if (io.ConfigDockingTransparentPayload)                         ImGui::Text("io.ConfigDockingTransparentPayload");
-        if (io.ConfigViewportsNoAutoMerge)                              ImGui::Text("io.ConfigViewportsNoAutoMerge");
-        if (io.ConfigViewportsNoTaskBarIcon)                            ImGui::Text("io.ConfigViewportsNoTaskBarIcon");
-        if (io.ConfigViewportsNoDecoration)                             ImGui::Text("io.ConfigViewportsNoDecoration");
-        if (io.ConfigViewportsNoParent)                                 ImGui::Text("io.ConfigViewportsNoParent");
         if (io.ConfigMacOSXBehaviors)                                   ImGui::Text("io.ConfigMacOSXBehaviors");
         if (io.ConfigInputTextCursorBlink)                              ImGui::Text("io.ConfigInputTextCursorBlink");
         if (io.ConfigWindowsResizeFromEdges)                            ImGui::Text("io.ConfigWindowsResizeFromEdges");
@@ -2755,6 +2767,7 @@ void ImGui::ShowAboutWindow(bool* p_open)
         ImGui::Separator();
         ImGui::Text("io.Fonts: %d fonts, Flags: 0x%08X, TexSize: %d,%d", io.Fonts->Fonts.Size, io.Fonts->Flags, io.Fonts->TexWidth, io.Fonts->TexHeight);
         ImGui::Text("io.DisplaySize: %.2f,%.2f", io.DisplaySize.x, io.DisplaySize.y);
+        ImGui::Text("io.DisplayFramebufferScale: %.2f,%.2f", io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
         ImGui::Separator();
         ImGui::Text("style.WindowPadding: %.2f,%.2f", style.WindowPadding.x, style.WindowPadding.y);
         ImGui::Text("style.WindowBorderSize: %.2f", style.WindowBorderSize);
@@ -3178,7 +3191,7 @@ struct ExampleAppConsole
     // Portable helpers
     static int   Stricmp(const char* str1, const char* str2)         { int d; while ((d = toupper(*str2) - toupper(*str1)) == 0 && *str1) { str1++; str2++; } return d; }
     static int   Strnicmp(const char* str1, const char* str2, int n) { int d = 0; while (n > 0 && (d = toupper(*str2) - toupper(*str1)) == 0 && *str1) { str1++; str2++; n--; } return d; }
-    static char* Strdup(const char *str)                             { size_t len = strlen(str) + 1; void* buff = malloc(len); return (char*)memcpy(buff, (const void*)str, len); }
+    static char* Strdup(const char *str)                             { size_t len = strlen(str) + 1; void* buf = malloc(len); IM_ASSERT(buf); return (char*)memcpy(buf, (const void*)str, len); }
     static void  Strtrim(char* str)                                  { char* str_end = str + strlen(str); while (str_end > str && str_end[-1] == ' ') str_end--; *str_end = 0; }
 
     void    ClearLog()
@@ -3469,6 +3482,12 @@ struct ExampleAppLog
     ImGuiTextFilter     Filter;
     ImVector<int>       LineOffsets;        // Index to lines offset. We maintain this with AddLog() calls, allowing us to have a random access on lines
     bool                ScrollToBottom;
+
+    ExampleAppLog()
+    {
+        ScrollToBottom = false;
+        Clear();
+    }
 
     void    Clear()
     {
@@ -4096,6 +4115,7 @@ void ShowExampleAppDockSpace(bool* p_open)
             if (ImGui::MenuItem("Flag: NoDockingInCentralNode", "", (opt_flags & ImGuiDockNodeFlags_NoDockingInCentralNode) != 0))  opt_flags ^= ImGuiDockNodeFlags_NoDockingInCentralNode;
             if (ImGui::MenuItem("Flag: NoResize",               "", (opt_flags & ImGuiDockNodeFlags_NoResize) != 0))                opt_flags ^= ImGuiDockNodeFlags_NoResize;
             if (ImGui::MenuItem("Flag: PassthruDockspace",      "", (opt_flags & ImGuiDockNodeFlags_PassthruDockspace) != 0))       opt_flags ^= ImGuiDockNodeFlags_PassthruDockspace;
+            if (ImGui::MenuItem("Flag: AutoHideTabBar",         "", (opt_flags & ImGuiDockNodeFlags_AutoHideTabBar) != 0))          opt_flags ^= ImGuiDockNodeFlags_AutoHideTabBar;
             ImGui::Separator();
             if (ImGui::MenuItem("Close DockSpace", NULL, false, p_open != NULL))
                 *p_open = false;
@@ -4237,7 +4257,7 @@ void ShowExampleAppDocuments(bool* p_open)
         return;
     }
 
-    // Menu Bar
+    // Menu
     if (ImGui::BeginMenuBar())
     {
         if (ImGui::BeginMenu("File"))
