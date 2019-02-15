@@ -52,13 +52,13 @@
 //---- Define constructor and implicit cast operators to convert back<>forth from your math types and ImVec2/ImVec4.
 #ifdef EASE_CORE_DEFINED
     #define IM_VEC2_CLASS_EXTRA                                                 \
-            ImVec2(const EaseCore::Vec2 & f) { x = f.x; y = f.y; }                \
-            operator EaseCore::Vec2() const { return EaseCore::Vec2(x,y); }
+            ImVec2(const ease::Vec2 & f) { x = f.x; y = f.y; }                \
+            operator ease::Vec2() const { return ease::Vec2(x,y); }
 
     #define IM_VEC4_CLASS_EXTRA                                                            \
-            ImVec4(const EaseCore::Vec4 & f) { x = f.x; y = f.y; z = f.z; w = f.w; }    \
-            EaseCore::Vec4  ToVec4() const { return EaseCore::Vec4(x,y,z,w); }         \
-            operator EaseCore::Vec4() const { return EaseCore::Vec4(x,y,z,w); }
+            ImVec4(const ease::Vec4 & f) { x = f.x; y = f.y; z = f.z; w = f.w; }    \
+            ease::Vec4  ToVec4() const { return ease::Vec4(x,y,z,w); }         \
+            operator ease::Vec4() const { return ease::Vec4(x,y,z,w); }
 #endif
 
 //---- Use 32-bit vertex indices (instead of default: 16-bit) to allow meshes with more than 64K vertices
