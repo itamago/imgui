@@ -197,14 +197,6 @@ static void ImGui_ImplWin32_UpdateMousePos()
         if (ImGuiViewport* viewport = ImGui::FindViewportByPlatformHandle((void*)hovered_hwnd))
             if ((viewport->Flags & ImGuiViewportFlags_NoInputs) == 0) // FIXME: We still get our NoInputs window with WM_NCHITTEST/HTTRANSPARENT code when decorated?
                 io.MouseHoveredViewport = viewport->ID;
-
-#if 0
-    POINT pos;
-    if (HWND active_window = ::GetForegroundWindow())
-        if (active_window == g_hWnd || ::IsChild(active_window, g_hWnd))
-            if (::GetCursorPos(&pos) && ::ScreenToClient(g_hWnd, &pos))
-                io.MousePos = ImVec2((float)pos.x, (float)pos.y);
-#endif
 }
 
 #ifdef _MSC_VER
@@ -212,7 +204,7 @@ static void ImGui_ImplWin32_UpdateMousePos()
 #endif
 
 // Gamepad navigation mapping
-void    ImGui_ImplWin32_UpdateGameControllers()
+static void ImGui_ImplWin32_UpdateGamepads()
 {
     ImGuiIO& io = ImGui::GetIO();
     memset(io.NavInputs, 0, sizeof(io.NavInputs));
@@ -295,7 +287,7 @@ void    ImGui_ImplWin32_NewFrame()
     }
 
     // Update game controllers (if available)
-    ImGui_ImplWin32_UpdateGameControllers();
+    ImGui_ImplWin32_UpdateGamepads();
 }
 
 // Allow compilation with old Windows SDK. MinGW doesn't have default _WIN32_WINNT/WINVER versions.
