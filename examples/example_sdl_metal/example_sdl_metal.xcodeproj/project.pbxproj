@@ -9,8 +9,6 @@
 /* Begin PBXBuildFile section */
 		07A82ED82139413D0078D120 /* imgui_widgets.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07A82ED72139413C0078D120 /* imgui_widgets.cpp */; };
 		07A82ED92139418F0078D120 /* imgui_widgets.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07A82ED72139413C0078D120 /* imgui_widgets.cpp */; };
-		4039AE4323CC6F9F004FC64F /* imgui_impl_metal_sdl.mm in Sources */ = {isa = PBXBuildFile; fileRef = 4039AE4123CC6F9F004FC64F /* imgui_impl_metal_sdl.mm */; };
-		4039AE4423CC6FA3004FC64F /* imgui_impl_metal_sdl.mm in Sources */ = {isa = PBXBuildFile; fileRef = 4039AE4123CC6F9F004FC64F /* imgui_impl_metal_sdl.mm */; };
 		40F5DD8923CC50A6003B8EEE /* imgui_impl_sdl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 40F5DD8823CC50A6003B8EEE /* imgui_impl_sdl.cpp */; };
 		40F5DD8A23CC50A6003B8EEE /* imgui_impl_sdl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 40F5DD8823CC50A6003B8EEE /* imgui_impl_sdl.cpp */; };
 		40F5DD8F23CC56E6003B8EEE /* GameController.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 40F5DD8E23CC56E6003B8EEE /* GameController.framework */; };
@@ -18,8 +16,8 @@
 		40F5DD9323CC570C003B8EEE /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 40F5DD9223CC570C003B8EEE /* AudioToolbox.framework */; };
 		40F5DD9523CC571A003B8EEE /* Carbon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 40F5DD9423CC571A003B8EEE /* Carbon.framework */; };
 		40F5DD9723CC5730003B8EEE /* ForceFeedback.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 40F5DD9623CC5730003B8EEE /* ForceFeedback.framework */; };
-		40F5DD9923CC57B3003B8EEE /* main_sdl_metal.mm in Sources */ = {isa = PBXBuildFile; fileRef = 40F5DD9823CC57B3003B8EEE /* main_sdl_metal.mm */; };
-		40F5DD9A23CC57B3003B8EEE /* main_sdl_metal.mm in Sources */ = {isa = PBXBuildFile; fileRef = 40F5DD9823CC57B3003B8EEE /* main_sdl_metal.mm */; };
+		40F5DD9923CC57B3003B8EEE /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = 40F5DD9823CC57B3003B8EEE /* main.mm */; };
+		40F5DD9A23CC57B3003B8EEE /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = 40F5DD9823CC57B3003B8EEE /* main.mm */; };
 		40F5DDA123CC5A08003B8EEE /* screen.mm in Sources */ = {isa = PBXBuildFile; fileRef = 40F5DDA023CC5A08003B8EEE /* screen.mm */; };
 		40F5DDA223CC5A08003B8EEE /* screen.mm in Sources */ = {isa = PBXBuildFile; fileRef = 40F5DDA023CC5A08003B8EEE /* screen.mm */; };
 		40F5DDA523CC6C74003B8EEE /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 40F5DDA423CC6C74003B8EEE /* CoreVideo.framework */; };
@@ -44,13 +42,13 @@
 		83BBEA0820EB54E700295997 /* imgui_demo.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 83BBEA0220EB54E700295997 /* imgui_demo.cpp */; };
 		83BBEA0920EB54E700295997 /* imgui.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 83BBEA0320EB54E700295997 /* imgui.cpp */; };
 		83BBEA0A20EB54E700295997 /* imgui.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 83BBEA0320EB54E700295997 /* imgui.cpp */; };
+		C8B9201E23CD029500E2F5CC /* imgui_impl_metal.mm in Sources */ = {isa = PBXBuildFile; fileRef = C8B9201D23CD029500E2F5CC /* imgui_impl_metal.mm */; };
+		C8B9201F23CD029500E2F5CC /* imgui_impl_metal.mm in Sources */ = {isa = PBXBuildFile; fileRef = C8B9201D23CD029500E2F5CC /* imgui_impl_metal.mm */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		07A82ED62139413C0078D120 /* imgui_internal.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = imgui_internal.h; path = ../../imgui_internal.h; sourceTree = "<group>"; };
 		07A82ED72139413C0078D120 /* imgui_widgets.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = imgui_widgets.cpp; path = ../../imgui_widgets.cpp; sourceTree = "<group>"; };
-		4039AE4123CC6F9F004FC64F /* imgui_impl_metal_sdl.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = imgui_impl_metal_sdl.mm; sourceTree = "<group>"; };
-		4039AE4223CC6F9F004FC64F /* imgui_impl_metal_sdl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = imgui_impl_metal_sdl.h; sourceTree = "<group>"; };
 		40F5DD8723CC50A6003B8EEE /* imgui_impl_sdl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = imgui_impl_sdl.h; path = ../imgui_impl_sdl.h; sourceTree = "<group>"; };
 		40F5DD8823CC50A6003B8EEE /* imgui_impl_sdl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = imgui_impl_sdl.cpp; path = ../imgui_impl_sdl.cpp; sourceTree = "<group>"; };
 		40F5DD8E23CC56E6003B8EEE /* GameController.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GameController.framework; path = System/Library/Frameworks/GameController.framework; sourceTree = SDKROOT; };
@@ -58,7 +56,7 @@
 		40F5DD9223CC570C003B8EEE /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
 		40F5DD9423CC571A003B8EEE /* Carbon.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Carbon.framework; path = System/Library/Frameworks/Carbon.framework; sourceTree = SDKROOT; };
 		40F5DD9623CC5730003B8EEE /* ForceFeedback.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ForceFeedback.framework; path = System/Library/Frameworks/ForceFeedback.framework; sourceTree = SDKROOT; };
-		40F5DD9823CC57B3003B8EEE /* main_sdl_metal.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = main_sdl_metal.mm; sourceTree = "<group>"; };
+		40F5DD9823CC57B3003B8EEE /* main.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
 		40F5DD9F23CC5A08003B8EEE /* screen.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = screen.h; sourceTree = "<group>"; };
 		40F5DDA023CC5A08003B8EEE /* screen.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = screen.mm; sourceTree = "<group>"; };
 		40F5DDA323CC5A63003B8EEE /* header.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = header.h; sourceTree = "<group>"; };
@@ -87,6 +85,8 @@
 		83BBEA0220EB54E700295997 /* imgui_demo.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = imgui_demo.cpp; path = ../../imgui_demo.cpp; sourceTree = "<group>"; };
 		83BBEA0320EB54E700295997 /* imgui.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = imgui.cpp; path = ../../imgui.cpp; sourceTree = "<group>"; };
 		83BBEA0420EB54E700295997 /* imconfig.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = imconfig.h; path = ../../imconfig.h; sourceTree = "<group>"; };
+		C8B9201C23CD029500E2F5CC /* imgui_impl_metal.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = imgui_impl_metal.h; path = ../imgui_impl_metal.h; sourceTree = "<group>"; };
+		C8B9201D23CD029500E2F5CC /* imgui_impl_metal.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = imgui_impl_metal.mm; path = ../imgui_impl_metal.mm; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -128,6 +128,7 @@
 		8307E7B520E9F9C700473790 = {
 			isa = PBXGroup;
 			children = (
+				C8B9201B23CD00BB00E2F5CC /* app */,
 				83BBE9F020EB544400295997 /* imgui */,
 				8307E7C620E9F9C900473790 /* iOS */,
 				8307E7C520E9F9C900473790 /* Products */,
@@ -181,17 +182,6 @@
 		83BBE9F020EB544400295997 /* imgui */ = {
 			isa = PBXGroup;
 			children = (
-				4039AE4223CC6F9F004FC64F /* imgui_impl_metal_sdl.h */,
-				4039AE4123CC6F9F004FC64F /* imgui_impl_metal_sdl.mm */,
-				40F5DDB823CC6E51003B8EEE /* Default-568h@2x.png */,
-				40F5DDB223CC6E2F003B8EEE /* Info-iOS.plist */,
-				40F5DDB323CC6E2F003B8EEE /* Info-macOS.plist */,
-				40F5DD9823CC57B3003B8EEE /* main_sdl_metal.mm */,
-				40F5DDA323CC5A63003B8EEE /* header.h */,
-				40F5DD9F23CC5A08003B8EEE /* screen.h */,
-				40F5DDA023CC5A08003B8EEE /* screen.mm */,
-				40F5DD8723CC50A6003B8EEE /* imgui_impl_sdl.h */,
-				40F5DD8823CC50A6003B8EEE /* imgui_impl_sdl.cpp */,
 				83BBEA0420EB54E700295997 /* imconfig.h */,
 				83BBEA0320EB54E700295997 /* imgui.cpp */,
 				83BBEA0020EB54E700295997 /* imgui.h */,
@@ -201,6 +191,24 @@
 				07A82ED72139413C0078D120 /* imgui_widgets.cpp */,
 			);
 			name = imgui;
+			sourceTree = "<group>";
+		};
+		C8B9201B23CD00BB00E2F5CC /* app */ = {
+			isa = PBXGroup;
+			children = (
+				40F5DDB223CC6E2F003B8EEE /* Info-iOS.plist */,
+				40F5DDB323CC6E2F003B8EEE /* Info-macOS.plist */,
+				40F5DDB823CC6E51003B8EEE /* Default-568h@2x.png */,
+				40F5DDA323CC5A63003B8EEE /* header.h */,
+				40F5DD9823CC57B3003B8EEE /* main.mm */,
+				40F5DD9F23CC5A08003B8EEE /* screen.h */,
+				40F5DDA023CC5A08003B8EEE /* screen.mm */,
+				40F5DD8723CC50A6003B8EEE /* imgui_impl_sdl.h */,
+				40F5DD8823CC50A6003B8EEE /* imgui_impl_sdl.cpp */,
+				C8B9201C23CD029500E2F5CC /* imgui_impl_metal.h */,
+				C8B9201D23CD029500E2F5CC /* imgui_impl_metal.mm */,
+			);
+			name = app;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -304,13 +312,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				40F5DD8923CC50A6003B8EEE /* imgui_impl_sdl.cpp in Sources */,
+				C8B9201E23CD029500E2F5CC /* imgui_impl_metal.mm in Sources */,
 				40F5DDA123CC5A08003B8EEE /* screen.mm in Sources */,
 				83BBEA0520EB54E700295997 /* imgui_draw.cpp in Sources */,
-				40F5DD9923CC57B3003B8EEE /* main_sdl_metal.mm in Sources */,
+				40F5DD9923CC57B3003B8EEE /* main.mm in Sources */,
 				83BBEA0920EB54E700295997 /* imgui.cpp in Sources */,
 				83BBEA0720EB54E700295997 /* imgui_demo.cpp in Sources */,
 				07A82ED82139413D0078D120 /* imgui_widgets.cpp in Sources */,
-				4039AE4323CC6F9F004FC64F /* imgui_impl_metal_sdl.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -319,13 +327,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				40F5DD8A23CC50A6003B8EEE /* imgui_impl_sdl.cpp in Sources */,
+				C8B9201F23CD029500E2F5CC /* imgui_impl_metal.mm in Sources */,
 				40F5DDA223CC5A08003B8EEE /* screen.mm in Sources */,
 				83BBEA0620EB54E700295997 /* imgui_draw.cpp in Sources */,
 				07A82ED92139418F0078D120 /* imgui_widgets.cpp in Sources */,
-				40F5DD9A23CC57B3003B8EEE /* main_sdl_metal.mm in Sources */,
+				40F5DD9A23CC57B3003B8EEE /* main.mm in Sources */,
 				83BBEA0A20EB54E700295997 /* imgui.cpp in Sources */,
 				83BBEA0820EB54E700295997 /* imgui_demo.cpp in Sources */,
-				4039AE4423CC6FA3004FC64F /* imgui_impl_metal_sdl.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -2,8 +2,8 @@
 #include "screen.h"
 #include "imgui_impl_metal_sdl.h"
 
-id<MTLDevice>           g_device = nil;
-id <MTLCommandQueue>    g_queue  = nil;
+id<MTLDevice>           g_device        = nil;
+id <MTLCommandQueue>    g_commandQueue  = nil;
 
 
 int main(int, char**)
@@ -23,8 +23,7 @@ int main(int, char**)
     Screen* screen = new Screen(g_device, "Dear ImGui SDL2+Metal example", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, true /* withBorders */);
     printf("retina = %.1f\n", screen->GetRetinaFactor());
 
-
-    // Setup Dear ImGui context
+    /// Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
@@ -35,7 +34,7 @@ int main(int, char**)
     //io.ConfigFlags |= ImGuiConfigFlags_ViewportsNoTaskBarIcons;
     //io.ConfigFlags |= ImGuiConfigFlags_ViewportsNoMerge;
 
-    // Setup Dear ImGui style
+    /// Setup Dear ImGui style
     ImGui::StyleColorsDark();
 
     // When viewports are enabled we tweak WindowRounding/WindowBg so platform windows can look identical to regular ones.
@@ -46,80 +45,23 @@ int main(int, char**)
         style.Colors[ImGuiCol_WindowBg].w = 1.0f;
     }
 
-    // Setup Platform/Renderer bindings
+    /// Setup Platform/Renderer bindings
     ImGui_ImplSDL2_InitForMetal(screen->winSDL);
-
     ImGui_ImplMetal_Init(g_device);
+    g_commandQueue = [g_device newCommandQueue];
 
-    g_queue = [g_device newCommandQueue];
-
-#if 0
-
-    /// METAL resources
-    MTLRenderPassDescriptor* renderdesc = [MTLRenderPassDescriptor renderPassDescriptor];
-    MTLRenderPassColorAttachmentDescriptor* colorattachment = renderdesc.colorAttachments[0];
-    IM_ASSERT(renderdesc!=nil && colorattachment!=nil);
-
-    id <MTLCommandQueue> queue = [g_device newCommandQueue];
-    IM_ASSERT(queue!=nil);
-
-
-    int countFrame = 0;
-
-    for (;;)
-    {
-        SDL_Event evt;
-        while (SDL_PollEvent(&evt))
-        {
-            /// Handle SDL events.
-            ImGui_ImplSDL2_ProcessEvent(&evt);
-        }
-
-        @autoreleasepool /// In order to release the drawable automatically
-        {
-            id <MTLCommandBuffer> cmdbuf = [queue commandBuffer];
-
-            /// Clear to a red-orange color when beginning the render pass.
-            colorattachment.clearColor  = MTLClearColorMake(
-                                                sin(countFrame * 3.14f/60.0f),
-                                                sin(1.2f + countFrame * 3.14f/120.0f),
-                                                sin(countFrame * 3.14f/90.0f),
-                                                1.0);
-            colorattachment.loadAction  = MTLLoadActionClear;
-            colorattachment.storeAction = MTLStoreActionStore;
-
-            id <CAMetalDrawable> drawable = [screen->metalLayer nextDrawable];
-            colorattachment.texture = drawable.texture;
-//            printf("render size = %d x %d\n", drawable.texture.width, drawable.texture.height);
-
-            /// The drawable's texture is cleared to the specified color here.
-            id <MTLRenderCommandEncoder> encoder = [cmdbuf renderCommandEncoderWithDescriptor:renderdesc];
-            [encoder endEncoding];
-
-            [cmdbuf presentDrawable:drawable];
-            [cmdbuf commit];
-        }
-
-//      printf("frame #%d\n", countFrame);
-        countFrame++;
-    }
-
-#else
-
-    // Our state
+    /// Our state
     bool show_demo_window = true;
     bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     /// Pass description
-    MTLRenderPassDescriptor *renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
-    MTLRenderPassColorAttachmentDescriptor* colorattachment = renderPassDescriptor.colorAttachments[0];
-    IM_ASSERT(renderPassDescriptor!=nil && colorattachment!=nil);
-    colorattachment.clearColor = MTLClearColorMake(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
+    MTLRenderPassDescriptor* renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
+    IM_ASSERT(renderPassDescriptor!=nil);
 
     int countFrame = 0;
 
-    // Main loop
+    /// Main loop
     bool done = false;
     while (!done)
     {
@@ -146,45 +88,25 @@ int main(int, char**)
         screen->UpdateDrawableSize();
 
         /// Command buffer
-        id<MTLCommandBuffer> commandBuffer = [g_queue commandBuffer];
+        id<MTLCommandBuffer> commandBuffer = [g_commandQueue commandBuffer];
 
         /// Clear screen
-        colorattachment.clearColor  = MTLClearColorMake(
-                                            sin(countFrame * 3.14f/60.0f),
-                                            sin(1.2f + countFrame * 3.14f/120.0f),
-                                            sin(countFrame * 3.14f/90.0f),
-                                            1.0);
-        colorattachment.loadAction  = MTLLoadActionClear;
-        colorattachment.storeAction = MTLStoreActionStore;
+        MTLRenderPassColorAttachmentDescriptor* color_attachment = renderPassDescriptor.colorAttachments[0];
+        color_attachment.clearColor  = MTLClearColorMake(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
+        color_attachment.loadAction  = MTLLoadActionClear;
+        color_attachment.storeAction = MTLStoreActionStore;
 
         @autoreleasepool /// In order to release the drawable automatically
         {
+            /// Get the next drawable
             id <CAMetalDrawable> drawable = [screen->metalLayer nextDrawable];
-            colorattachment.texture = drawable.texture;
-    //      printf("render size = %d x %d\n", drawable.texture.width, drawable.texture.height);
+            color_attachment.texture = drawable.texture;
 
             id <MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
 
-            // Start the Dear ImGui frame
+            /// Start the Dear ImGui frame
             ImGui_ImplMetal_NewFrame(renderPassDescriptor);
-
             ImGui_ImplSDL2_NewFrame(screen->winSDL);
-
-            /// FIXIT
-            {
-                ImGuiIO &io = ImGui::GetIO();
-                io.DisplaySize.x = screen->view.bounds.size.width;
-                io.DisplaySize.y = screen->view.bounds.size.height;
-
-            #if TARGET_OS_OSX
-                CGFloat framebufferScale = screen->winNative.screen.backingScaleFactor ?: NSScreen.mainScreen.backingScaleFactor;
-            #else
-                CGFloat framebufferScale = screen->winNative.screen.scale ?: UIScreen.mainScreen.scale;
-            #endif
-                io.DisplayFramebufferScale = ImVec2(framebufferScale, framebufferScale);
-
-            }
-
             ImGui::NewFrame();
 
             // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
@@ -227,10 +149,7 @@ int main(int, char**)
             // Rendering
             ImGui::Render();
 
-
-//          memcpy(&wd->ClearValue.color.float32[0], &clear_color, 4 * sizeof(float));
-//          FrameRender(wd);
-            ImDrawData *drawData = ImGui::GetDrawData();
+            ImDrawData* drawData = ImGui::GetDrawData();
             ImGui_ImplMetal_RenderDrawData(drawData, commandBuffer, renderEncoder);
 
             // Update and Render additional Platform Windows
@@ -251,8 +170,6 @@ int main(int, char**)
     ImGui_ImplMetal_Shutdown();
     ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext();
-
-#endif
 
     DELETESAFE(screen);
     SDL_Quit();
