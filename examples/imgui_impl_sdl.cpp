@@ -427,9 +427,14 @@ void ImGui_ImplSDL2_NewFrame(SDL_Window* window)
     int display_w, display_h;
     SDL_GetWindowSize(window, &w, &h);
     SDL_GL_GetDrawableSize(window, &display_w, &display_h);
+#if 0 //SDL_HAS_METAL
+    io.DisplaySize = ImVec2((float)display_w, (float)display_h);
+    io.DisplayFramebufferScale = ImVec2(1,1);
+#else
     io.DisplaySize = ImVec2((float)w, (float)h);
     if (w > 0 && h > 0)
         io.DisplayFramebufferScale = ImVec2((float)display_w / w, (float)display_h / h);
+#endif
 
     // Setup time step (we don't use SDL_GetTicks() because it is using millisecond resolution)
     static Uint64 frequency = SDL_GetPerformanceFrequency();

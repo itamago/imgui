@@ -81,6 +81,7 @@ bool ImGui_ImplMetal_Init(id<MTLDevice> device)
     ImGuiIO& io = ImGui::GetIO();
     io.BackendRendererName = "imgui_impl_metal";
     io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;  // We can honor the ImDrawCmd::VtxOffset field, allowing for large meshes.
+    io.BackendFlags |= ImGuiBackendFlags_PlatformHasViewports;  // We can honor the ImDrawCmd::VtxOffset field, allowing for large meshes.
 
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{

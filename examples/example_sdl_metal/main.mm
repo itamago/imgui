@@ -26,7 +26,7 @@ int main(int, char**)
     /// Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;       // Enable Keyboard Controls
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;           // Enable Docking
@@ -44,6 +44,11 @@ int main(int, char**)
         style.WindowRounding = 0.0f;
         style.Colors[ImGuiCol_WindowBg].w = 1.0f;
     }
+
+    /// Reload default font
+    ImFontConfig font_cfg;
+    font_cfg.SizePixels = 13.0f * screen->GetRetinaFactor();
+    io.Fonts->AddFontDefault(&font_cfg);
 
     /// Setup Platform/Renderer bindings
     ImGui_ImplSDL2_InitForMetal(screen->winSDL);
