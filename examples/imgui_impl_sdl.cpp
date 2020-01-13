@@ -56,14 +56,24 @@
 #include "TargetConditionals.h"
 #endif
 
+#if (defined TARGET_OS_MAC && TARGET_OS_MAC==1)
+#  define SDL_HAS_METAL                     1
+#else
+#  define SDL_HAS_METAL                     0
+#endif
+
 #define SDL_HAS_CAPTURE_AND_GLOBAL_MOUSE    SDL_VERSION_ATLEAST(2,0,4)
 #define SDL_HAS_WINDOW_ALPHA                SDL_VERSION_ATLEAST(2,0,5)
 #define SDL_HAS_ALWAYS_ON_TOP               SDL_VERSION_ATLEAST(2,0,5)
 #define SDL_HAS_USABLE_DISPLAY_BOUNDS       SDL_VERSION_ATLEAST(2,0,5)
 #define SDL_HAS_PER_MONITOR_DPI             SDL_VERSION_ATLEAST(2,0,4)
-#define SDL_HAS_VULKAN                      SDL_VERSION_ATLEAST(2,0,6)
+#if SDL_HAS_METAL
+#  define SDL_HAS_VULKAN                    0
+#else
+#  define SDL_HAS_VULKAN                    SDL_VERSION_ATLEAST(2,0,6)
+#endif
 #define SDL_HAS_MOUSE_FOCUS_CLICKTHROUGH    SDL_VERSION_ATLEAST(2,0,5)
-#if !SDL_HAS_VULKAN
+#if !SDL_HAS_VULKAN && !SDL_HAS_METAL
 static const Uint32 SDL_WINDOW_VULKAN = 0x10000000;
 #endif
 
@@ -234,6 +244,14 @@ bool ImGui_ImplSDL2_InitForOpenGL(SDL_Window* window, void* sdl_gl_context)
 bool ImGui_ImplSDL2_InitForVulkan(SDL_Window* window)
 {
 #if !SDL_HAS_VULKAN
+    IM_ASSERT(0 && "Unsupported");
+#endif
+    return ImGui_ImplSDL2_Init(window, NULL);
+}
+
+bool ImGui_ImplSDL2_InitForMetal(SDL_Window* window)
+{
+#if !SDL_HAS_METAL
     IM_ASSERT(0 && "Unsupported");
 #endif
     return ImGui_ImplSDL2_Init(window, NULL);
