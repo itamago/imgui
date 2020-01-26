@@ -1,10 +1,14 @@
 
 #include "screen.h"
 #include "imgui_impl_metal_sdl.h"
+#include <thread>
 
 id<MTLDevice>           g_device        = nil;
 id <MTLCommandQueue>    g_commandQueue  = nil;
+bool                    g_done          = false;
+Screen*                 g_screen        = NULL;
 
+void RenderLoop();
 
 int main(int, char**)
 {
@@ -20,8 +24,8 @@ int main(int, char**)
     IM_ASSERT(g_device != nil);
 
     /// Setup window
-    Screen* screen = new Screen(g_device, "Dear ImGui SDL2+Metal example", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, true /* withBorders */);
-    printf("retina = %.1f\n", screen->GetRetinaFactor());
+    g_screen = new Screen(g_device, "Dear ImGui SDL2+Metal example", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, true /* withBorders */);
+    printf("retina = %.1f\n", g_screen->GetRetinaFactor());
 
     /// Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -48,15 +52,59 @@ int main(int, char**)
     /// Reload default font
 #if 0
     ImFontConfig font_cfg;
-    font_cfg.SizePixels = 13.0f * screen->GetRetinaFactor();
+    font_cfg.SizePixels = 13.0f * g_screen->GetRetinaFactor();
     io.Fonts->AddFontDefault(&font_cfg);
 #endif
 
     /// Setup Platform/Renderer bindings
-    ImGui_ImplSDL2_InitForMetal(screen->winSDL);
+    ImGui_ImplSDL2_InitForMetal(g_screen->winSDL);
     ImGui_ImplMetal_Init(g_device);
     g_commandQueue = [g_device newCommandQueue];
 
+    /// Launch render-thread
+    std::thread render_thread(RenderLoop);
+
+    /// SDL event loop
+    g_done = false;
+    while (!g_done)
+    {
+#if 1
+        SDL_Event event;
+        if (SDL_WaitEvent(&event)) /// execution suspends here while waiting on an event
+        {
+            ImGui_ImplSDL2_ProcessEvent(&event);
+            if (event.type == SDL_QUIT)
+                g_done = true;
+        }
+#else
+        SDL_Event event;
+        while (SDL_PollEvent(&event))
+        {
+            ImGui_ImplSDL2_ProcessEvent(&event);
+            if (event.type == SDL_QUIT)
+                g_done = true;
+//            if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_RESIZED && event.window.windowID == SDL_GetWindowID(g_screen->winSDL))
+//            {
+//                g_screen->UpdateDrawableSize();
+//            }
+        }
+#endif
+    }
+
+    // Cleanup
+    ImGui_ImplMetal_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
+    ImGui::DestroyContext();
+
+    DELETESAFE(g_screen);
+    SDL_Quit();
+
+    return 0;
+}
+
+
+void RenderLoop()
+{
     /// Our state
     bool show_demo_window = true;
     bool show_another_window = false;
@@ -69,30 +117,12 @@ int main(int, char**)
     int countFrame = 0;
 
     /// Main loop
-    bool done = false;
-    while (!done)
+    while (!g_done)
     {
         countFrame++;
 
-        /// Poll and handle events (inputs, window resize, etc.)
-        /// You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
-        /// - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application.
-        /// - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application.
-        /// Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
-        SDL_Event event;
-        while (SDL_PollEvent(&event))
-        {
-            ImGui_ImplSDL2_ProcessEvent(&event);
-            if (event.type == SDL_QUIT)
-                done = true;
-            if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_RESIZED && event.window.windowID == SDL_GetWindowID(screen->winSDL))
-            {
-                screen->UpdateDrawableSize();
-            }
-        }
-
         /// Maybe hard to do it each frame, but Metal seems resilient and doesnt do anything if the size remains equal
-        screen->UpdateDrawableSize();
+        g_screen->UpdateDrawableSize();
 
         /// Command buffer
         id<MTLCommandBuffer> commandBuffer = [g_commandQueue commandBuffer];
@@ -106,14 +136,14 @@ int main(int, char**)
         @autoreleasepool /// In order to release the drawable automatically
         {
             /// Get the next drawable
-            id <CAMetalDrawable> drawable = [screen->metalLayer nextDrawable];
+            id <CAMetalDrawable> drawable = [g_screen->metalLayer nextDrawable];
             color_attachment.texture = drawable.texture;
 
             id <MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
 
             /// Start the Dear ImGui frame
             ImGui_ImplMetal_NewFrame(renderPassDescriptor);
-            ImGui_ImplSDL2_NewFrame(screen->winSDL);
+            ImGui_ImplSDL2_NewFrame(g_screen->winSDL);
             ImGui::NewFrame();
 
             // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
@@ -160,7 +190,7 @@ int main(int, char**)
             ImGui_ImplMetal_RenderDrawData(drawData, commandBuffer, renderEncoder);
 
             // Update and Render additional Platform Windows
-            if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+            if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
             {
                 ImGui::UpdatePlatformWindows();
                 ImGui::RenderPlatformWindowsDefault();
@@ -173,13 +203,4 @@ int main(int, char**)
         [commandBuffer commit];
     }
 
-    // Cleanup
-    ImGui_ImplMetal_Shutdown();
-    ImGui_ImplSDL2_Shutdown();
-    ImGui::DestroyContext();
-
-    DELETESAFE(screen);
-    SDL_Quit();
-
-    return 0;
 }
