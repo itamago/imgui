@@ -57,6 +57,7 @@
 #define GLFW_HAS_FOCUS_WINDOW         (GLFW_VERSION_MAJOR * 1000 + GLFW_VERSION_MINOR * 100 >= 3200) // 3.2+ glfwFocusWindow
 #define GLFW_HAS_FOCUS_ON_SHOW        (GLFW_VERSION_MAJOR * 1000 + GLFW_VERSION_MINOR * 100 >= 3300) // 3.3+ GLFW_FOCUS_ON_SHOW
 #define GLFW_HAS_MONITOR_WORK_AREA    (GLFW_VERSION_MAJOR * 1000 + GLFW_VERSION_MINOR * 100 >= 3300) // 3.3+ glfwGetMonitorWorkarea
+#define GLFW_HAS_OSX_WINDOW_POS_FIX   (GLFW_VERSION_MAJOR * 1000 + GLFW_VERSION_MINOR * 100 + GLFW_VERSION_REVISION * 10 >= 3310) // 3.3.1+ Fixed: Resizing window repositions it on MacOS #1553
 #ifdef GLFW_RESIZE_NESW_CURSOR        // Let's be nice to people who pulled GLFW between 2019-04-16 (3.4 define) and 2019-11-29 (cursors defines) // FIXME: Remove when GLFW 3.4 is released?
 #define GLFW_HAS_NEW_CURSORS          (GLFW_VERSION_MAJOR * 1000 + GLFW_VERSION_MINOR * 100 >= 3400) // 3.4+ GLFW_RESIZE_ALL_CURSOR, GLFW_RESIZE_NESW_CURSOR, GLFW_RESIZE_NWSE_CURSOR, GLFW_NOT_ALLOWED_CURSOR
 #else
@@ -73,7 +74,7 @@ enum GlfwClientApi
 static GLFWwindow*          g_Window = NULL;    // Main window
 static GlfwClientApi        g_ClientApi = GlfwClientApi_Unknown;
 static double               g_Time = 0.0;
-static bool                 g_MouseJustPressed[5] = { false, false, false, false, false };
+static bool                 g_MouseJustPressed[ImGuiMouseButton_COUNT] = {};
 static GLFWcursor*          g_MouseCursors[ImGuiMouseCursor_COUNT] = {};
 static bool                 g_InstalledCallbacks = false;
 static bool                 g_WantUpdateMonitors = true;
@@ -490,9 +491,10 @@ struct ImGuiViewportDataGlfw
 {
     GLFWwindow* Window;
     bool        WindowOwned;
+    int         IgnoreWindowPosEventFrame;
     int         IgnoreWindowSizeEventFrame;
 
-    ImGuiViewportDataGlfw()  { Window = NULL; WindowOwned = false; IgnoreWindowSizeEventFrame = -1; }
+    ImGuiViewportDataGlfw()  { Window = NULL; WindowOwned = false; IgnoreWindowSizeEventFrame = IgnoreWindowPosEventFrame = -1; }
     ~ImGuiViewportDataGlfw() { IM_ASSERT(Window == NULL); }
 };
 
@@ -502,10 +504,25 @@ static void ImGui_ImplGlfw_WindowCloseCallback(GLFWwindow* window)
         viewport->PlatformRequestClose = true;
 }
 
+// GLFW may dispatch window pos/size events after calling glfwSetWindowPos()/glfwSetWindowSize().
+// However: depending on the platform the callback may be invoked at different time:
+// - on Windows it appears to be called within the glfwSetWindowPos()/glfwSetWindowSize() call
+// - on Linux it is queued and invoked during glfwPollEvents()
+// Because the event doesn't always fire on glfwSetWindowXXX() we use a frame counter tag to only
+// ignore recent glfwSetWindowXXX() calls.
 static void ImGui_ImplGlfw_WindowPosCallback(GLFWwindow* window, int, int)
 {
     if (ImGuiViewport* viewport = ImGui::FindViewportByPlatformHandle(window))
+    {
+        if (ImGuiViewportDataGlfw* data = (ImGuiViewportDataGlfw*)viewport->PlatformUserData)
+        {
+            bool ignore_event = (ImGui::GetFrameCount() <= data->IgnoreWindowPosEventFrame + 1);
+            //data->IgnoreWindowPosEventFrame = -1;
+            if (ignore_event)
+                return;
+        }
         viewport->PlatformRequestMove = true;
+    }
 }
 
 static void ImGui_ImplGlfw_WindowSizeCallback(GLFWwindow* window, int, int)
@@ -514,14 +531,8 @@ static void ImGui_ImplGlfw_WindowSizeCallback(GLFWwindow* window, int, int)
     {
         if (ImGuiViewportDataGlfw* data = (ImGuiViewportDataGlfw*)viewport->PlatformUserData)
         {
-            // GLFW may dispatch window size event after calling glfwSetWindowSize().
-            // However depending on the platform the callback may be invoked at different time: on Windows it
-            // appears to be called within the glfwSetWindowSize() call whereas on Linux it is queued and invoked
-            // during glfwPollEvents().
-            // Because the event doesn't always fire on glfwSetWindowSize() we use a frame counter tag to only
-            // ignore recent glfwSetWindowSize() calls.
             bool ignore_event = (ImGui::GetFrameCount() <= data->IgnoreWindowSizeEventFrame + 1);
-            data->IgnoreWindowSizeEventFrame = -1;
+            //data->IgnoreWindowSizeEventFrame = -1;
             if (ignore_event)
                 return;
         }
@@ -657,6 +668,7 @@ static ImVec2 ImGui_ImplGlfw_GetWindowPos(ImGuiViewport* viewport)
 static void ImGui_ImplGlfw_SetWindowPos(ImGuiViewport* viewport, ImVec2 pos)
 {
     ImGuiViewportDataGlfw* data = (ImGuiViewportDataGlfw*)viewport->PlatformUserData;
+    data->IgnoreWindowPosEventFrame = ImGui::GetFrameCount();
     glfwSetWindowPos(data->Window, (int)pos.x, (int)pos.y);
 }
 
@@ -671,7 +683,7 @@ static ImVec2 ImGui_ImplGlfw_GetWindowSize(ImGuiViewport* viewport)
 static void ImGui_ImplGlfw_SetWindowSize(ImGuiViewport* viewport, ImVec2 size)
 {
     ImGuiViewportDataGlfw* data = (ImGuiViewportDataGlfw*)viewport->PlatformUserData;
-#if __APPLE__
+#if __APPLE__ && !GLFW_HAS_OSX_WINDOW_POS_FIX
     // Native OS windows are positioned from the bottom-left corner on macOS, whereas on other platforms they are
     // positioned from the upper-left corner. GLFW makes an effort to convert macOS style coordinates, however it
     // doesn't handle it when changing size. We are manually moving the window in order for changes of size to be based

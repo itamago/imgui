@@ -20,6 +20,7 @@ or view this file with any Markdown viewer.
 | [How can I use this on a machine without mouse, keyboard or screen? (input share, remote display)](#q-how-can-i-use-this-on-a-machine-without-mouse-keyboard-or-screen-input-share-remote-display) |
 | [I integrated Dear ImGui in my engine and the text or lines are blurry..](#q-i-integrated-dear-imgui-in-my-engine-and-the-text-or-lines-are-blurry) |
 | [I integrated Dear ImGui in my engine and some elements are clipping or disappearing when I move windows around..](#q-i-integrated-dear-imgui-in-my-engine-and-some-elements-are-clipping-or-disappearing-when-i-move-windows-around) |
+| [I integrated Dear ImGui in my engine and some elements are displaying outside their expected windows boundaries..](#q-i-integrated-dear-imgui-in-my-engine-and-some-elements-are-displaying-outside-their-expected-windows-boundaries)
 | **Q&A: Usage** |
 | **[Why are multiple widgets reacting when I interact with a single one?<br>How can I have multiple widgets with the same label or with an empty label?](#q-why-are-multiple-widgets-reacting-when-i-interact-with-a-single-one-q-how-can-i-have-multiple-widgets-with-the-same-label-or-with-an-empty-label)** |
 | [How can I display an image? What is ImTextureID, how does it work?](#q-how-can-i-display-an-image-what-is-imtextureid-how-does-it-work)|
@@ -27,6 +28,7 @@ or view this file with any Markdown viewer.
 | [How can I interact with standard C++ types (such as std::string and std::vector)?](#q-how-can-i-interact-with-standard-c-types-such-as-stdstring-and-stdvector) |
 | [How can I display custom shapes? (using low-level ImDrawList API)](#q-how-can-i-display-custom-shapes-using-low-level-imdrawlist-api) |
 | **Q&A: Fonts, Text** |
+| [How should I handle DPI in my application?](#q-how-should-i-handle-dpi-in-my-application) |
 | [How can I load a different font than the default?](#q-how-can-i-load-a-different-font-than-the-default) |
 | [How can I easily use icons in my application?](#q-how-can-i-easily-use-icons-in-my-application) |
 | [How can I load multiple fonts?](#q-how-can-i-load-multiple-fonts) |
@@ -77,6 +79,9 @@ You may use the [docking](https://github.com/ocornut/imgui/tree/docking) branch 
 
 Many projects are using this branch and it is kept in sync with master regularly.
 
+You may merge in the [tables](https://github.com/ocornut/imgui/tree/tables) branch which includes:
+- [Table features](https://github.com/ocornut/imgui/issues/2957)
+
 ##### [Return to Index](#index)
 
 ----
@@ -96,9 +101,13 @@ e.g. `if (ImGui::GetIO().WantCaptureMouse) { ... }`
 **Note:** You should always pass your mouse/keyboard inputs to Dear ImGui, even when the io.WantCaptureXXX flag are set false.
  This is because imgui needs to detect that you clicked in the void to unfocus its own windows.
 
-**Note:** The `io.WantCaptureMouse` is more accurate that any manual attempt to "check if the mouse is hovering a window" (don't do that!). It handle mouse dragging correctly (both dragging that started over your application or over an imgui window) and handle e.g. modal windows blocking inputs. Those flags are updated by `ImGui::NewFrame()`. Preferably read the flags after calling NewFrame() if you can afford it, but reading them before is also perfectly fine, as the bool toggle fairly rarely. If you have on a touch device, you might find use for an early call to `UpdateHoveredWindowAndCaptureFlags()`.
+**Note:** The `io.WantCaptureMouse` is more correct that any manual attempt to "check if the mouse is hovering a window" (don't do that!). It handle mouse dragging correctly (both dragging that started over your application or over a Dear ImGui window) and handle e.g. popup and modal windows blocking inputs. 
 
-**Note:** Text input widget releases focus on "Return KeyDown", so the subsequent "Return KeyUp" event that your application receive will typically have `io.WantCaptureKeyboard == false`. Depending on your application logic it may or not be inconvenient. You might want to track which key-downs were targeted for Dear ImGui, e.g. with an array of bool, and filter out the corresponding key-ups.)
+**Note:** Those flags are updated by `ImGui::NewFrame()`. However it is generally more correct and easier that you poll flags from the previous frame, then submit your inputs, then call `NewFrame()`. If you attempt to do the opposite (which is generally harder) you are likely going to submit your inputs after `NewFrame()`, and therefore too late. 
+
+**Note:** If you are using a touch device, you may find use for an early call to `UpdateHoveredWindowAndCaptureFlags()` to correctly dispatch your initial touch. We will work on better out-of-the-box touch support in the future. 
+
+**Note:** Text input widget releases focus on the "KeyDown" event of the Return key, so the subsequent "KeyUp" event that your application receive will typically have `io.WantCaptureKeyboard == false`. Depending on your application logic it may or not be inconvenient to receive that KeyUp event. You might want to track which key-downs were targeted for Dear ImGui, e.g. with an array of bool, and filter out the corresponding key-ups.)
 
 ##### [Return to Index](#index)
 
@@ -139,11 +148,14 @@ Also make sure your orthographic projection matrix and io.DisplaySize matches yo
 ---
 
 ### Q: I integrated Dear ImGui in my engine and some elements are clipping or disappearing when I move windows around..
+### Q: I integrated Dear ImGui in my engine and some elements are displaying outside their expected windows boundaries..
 You are probably mishandling the clipping rectangles in your render function.
-Rectangles provided by ImGui are defined as
+Each draw command needs the triangle rendered using the clipping rectangle provided in the ImDrawCmd structure (`ImDrawCmd->CllipRect`).
+Rectangles provided by Dear ImGui are defined as
 `(x1=left,y1=top,x2=right,y2=bottom)`
 and **NOT** as
 `(x1,y1,width,height)`
+Refer to rendering back-ends in the [examples/](https://github.com/ocornut/imgui/tree/master/examples) folder for references of how to handle the `ClipRect` field.
 
 ##### [Return to Index](#index)
 
@@ -164,7 +176,7 @@ Unique ID are implicitly built from the hash of multiple elements that identify 
 - Unique ID are often derived from a string label and at minimum scoped within their host window:
 ```c
 Begin("MyWindow");
-Button("OK");          // Label = "OK",     ID = hash of ("MyWindow" "OK")
+Button("OK");          // Label = "OK",     ID = hash of ("MyWindow", "OK")
 Button("Cancel");      // Label = "Cancel", ID = hash of ("MyWindow", "Cancel")
 End();
 ```
@@ -437,10 +449,33 @@ ImGui::End();
 
 # Q&A: Fonts, Text
 
+### Q: How should I handle DPI in my application?
+
+The short answer is: obtain the desired DPI scale, load a suitable font resized with that scale (always round down font size to nearest integer), and scale your Style structure accordingly using `style.ScaleAllSizes()`. 
+
+Your application may want to detect DPI change and reload the font and reset style being frames.
+
+Your ui code  should avoid using hardcoded constants for size and positioning. Prefer to express values as multiple of reference values such as `ImGui::GetFontSize()` or `ImGui::GetFrameHeight()`. So e.g. instead of seeing a hardcoded height of 500 for a given item/window, you may want to use `30*ImGui::GetFontSize()` instead.
+
+Down the line Dear ImGui will provide a variety of standardized reference values to facilitate using this.
+
+Applications in the `examples/` folder are not DPI aware partly because they are unable to load a custom font from the file-system (may change that in the future).
+
+The reason DPI is not auto-magically solved in stock examples is that we don't yet have a satisfying solution for the "multi-dpi"  problem (using the `docking` branch: when multiple viewport windows are over multiple monitors using different DPI scale). The current way to handle this on the application side is:
+- Create and maintain one font atlas per active DPI scale (e.g. by iterating `platform_io.Monitors[]` before `NewFrame()`).
+- Hook `platform_io.OnChangedViewport()` to detect when a `Begin()` call makes a Dear ImGui window change monitor (and therefore DPI).
+- In the hook: swap atlas, swap style with correctly sized one, remap the current font from one atlas to the other (may need to maintain a remapping table of your fonts at variying DPI scale).
+
+This approach is relatively easy and functional but come with two issues:
+- It's not possibly to reliably size or position a window ahead of `Begin()` without knowing on which monitor it'll land.
+- Style override may be lost during the `Begin()` call crossing monitor boundaries. You may need to do some custom scaling mumbo-jumbo if you want your `OnChangedViewport()` handler to preserve style overrides.
+
+Please note that if you are not using multi-viewports with multi-monitors using different DPI scale, you can ignore all of this and use the simpler technique recommended at the top.
+
 ### Q: How can I load a different font than the default?
 Use the font atlas to load the TTF/OTF file you want:
 
-```c
+```cpp
 ImGuiIO& io = ImGui::GetIO();
 io.Fonts->AddFontFromFileTTF("myfontfile.ttf", size_in_pixels);
 io.Fonts->GetTexDataAsRGBA32() or GetTexDataAsAlpha8()
@@ -450,12 +485,12 @@ Default is ProggyClean.ttf, monospace, rendered at size 13, embedded in dear img
 
 (Tip: monospace fonts are convenient because they allow to facilitate horizontal alignment directly at the string level.)
 
-(Read the [docs/FONTS.txt](https://github.com/ocornut/imgui/blob/master/docs/FONTS.txt) file for more details about font loading.)
+(Read the [docs/FONTS.md](https://github.com/ocornut/imgui/blob/master/docs/FONTS.md) file for more details about font loading.)
 
 New programmers: remember that in C/C++ and most programming languages if you want to use a
 backslash \ within a string literal, you need to write it double backslash "\\":
 
-```c
+```cpp
 io.Fonts->AddFontFromFileTTF("MyFolder\MyFont.ttf", size);  // WRONG (you are escaping the M here!)
 io.Fonts->AddFontFromFileTTF("MyFolder\\MyFont.ttf", size;  // CORRECT
 io.Fonts->AddFontFromFileTTF("MyFolder/MyFont.ttf", size);  // ALSO CORRECT
@@ -469,9 +504,9 @@ io.Fonts->AddFontFromFileTTF("MyFolder/MyFont.ttf", size);  // ALSO CORRECT
 The most convenient and practical way is to merge an icon font such as FontAwesome inside you
 main font. Then you can refer to icons within your strings.
 You may want to see `ImFontConfig::GlyphMinAdvanceX` to make your icon look monospace to facilitate alignment.
-(Read the [docs/FONTS.txt](https://github.com/ocornut/imgui/blob/master/docs/FONTS.txt) file for more details about icons font loading.)
+(Read the [docs/FONTS.md](https://github.com/ocornut/imgui/blob/master/docs/FONTS.md) file for more details about icons font loading.)
 With some extra effort, you may use colorful icon by registering custom rectangle space inside the font atlas,
-and copying your own graphics data into it. See docs/FONTS.txt about using the AddCustomRectFontGlyph API.
+and copying your own graphics data into it. See docs/FONTS.md about using the AddCustomRectFontGlyph API.
 
 ##### [Return to Index](#index)
 
@@ -479,7 +514,7 @@ and copying your own graphics data into it. See docs/FONTS.txt about using the A
 
 ### Q: How can I load multiple fonts?
 Use the font atlas to pack them into a single texture:
-(Read the [docs/FONTS.txt](https://github.com/ocornut/imgui/blob/master/docs/FONTS.txt) file and the code in ImFontAtlas for more details.)
+(Read the [docs/FONTS.md](https://github.com/ocornut/imgui/blob/master/docs/FONTS.md) file and the code in ImFontAtlas for more details.)
 
 ```cpp
 ImGuiIO& io = ImGui::GetIO();
@@ -552,7 +587,7 @@ You may take a look at:
 
 - [Quotes](https://github.com/ocornut/imgui/wiki/Quotes)
 - [Software using Dear ImGui](https://github.com/ocornut/imgui/wiki/Software-using-dear-imgui)
-- [Gallery](https://github.com/ocornut/imgui/issues/2847)
+- [Gallery](https://github.com/ocornut/imgui/issues/3075)
 
 ##### [Return to Index](#index)
 
@@ -598,7 +633,7 @@ There is an auto-generated [c-api for Dear ImGui (cimgui)](https://github.com/ci
 - Individuals: you can support continued maintenance and development via PayPal donations. See [README](https://github.com/ocornut/imgui/blob/master/docs/README.md).
 - If you are experienced with Dear ImGui and C++, look at the [GitHub Issues](https://github.com/ocornut/imgui/issues), look at the [Wiki](https://github.com/ocornut/imgui/wiki), read [docs/TODO.txt](https://github.com/ocornut/imgui/blob/master/docs/TODO.txt) and see how you want to help and can help!
 - Disclose your usage of Dear ImGui via a dev blog post, a tweet, a screenshot, a mention somewhere etc.
-You may post screenshot or links in the [gallery threads](https://github.com/ocornut/imgui/issues/2847). Visuals are ideal as they inspire other programmers. Disclosing your use of dear imgui help the library grow credibility, and help other teams and programmers with taking decisions.
+You may post screenshot or links in the [gallery threads](https://github.com/ocornut/imgui/issues/3075). Visuals are ideal as they inspire other programmers. Disclosing your use of dear imgui help the library grow credibility, and help other teams and programmers with taking decisions.
 - If you have issues or if you need to hack into the library, even if you don't expect any support it is useful that you share your issues or sometimes incomplete PR.
 
 ##### [Return to Index](#index)

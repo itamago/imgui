@@ -1,4 +1,4 @@
-// Wrapper to use FreeType (instead of stb_truetype) for Dear ImGui
+// dear imgui: wrapper to use FreeType (instead of stb_truetype)
 // Get latest version at https://github.com/ocornut/imgui/tree/master/misc/freetype
 // Original code by @vuhdo (Aleksei Skriabin). Improvements by @mikesart. Maintained and v0.60+ by @ocornut.
 
@@ -13,6 +13,7 @@
 // - v0.60: (2019/01/10) re-factored to match big update in STB builder. fixed texture height waste. fixed redundant glyphs when merging. support for glyph padding.
 // - v0.61: (2019/01/15) added support for imgui allocators + added FreeType only override function SetAllocatorFunctions().
 // - v0.62: (2019/02/09) added RasterizerFlags::Monochrome flag to disable font anti-aliasing (combine with ::MonoHinting for best results!)
+// - v0.63: (2020/06/04) fix for rare case where FT_Get_Char_Index() succeed but FT_Load_Glyph() fails. 
 
 // Gamma Correct Blending:
 //  FreeType assumes blending in linear space rather than gamma space.
@@ -280,7 +281,7 @@ namespace
 
 #ifndef STB_RECT_PACK_IMPLEMENTATION                        // in case the user already have an implementation in the _same_ compilation unit (e.g. unity builds)
 #ifndef IMGUI_DISABLE_STB_RECT_PACK_IMPLEMENTATION
-#define STBRP_ASSERT(x)     IM_ASSERT(x)
+#define STBRP_ASSERT(x)     do { IM_ASSERT(x); } while (0)
 #define STBRP_STATIC
 #define STB_RECT_PACK_IMPLEMENTATION
 #endif
@@ -467,7 +468,6 @@ bool ImFontAtlasBuildWithFreeType(FT_Library ft_library, ImFontAtlas* atlas, uns
             ImFontBuildSrcGlyphFT& src_glyph = src_tmp.GlyphsList[glyph_i];
 
             const FT_Glyph_Metrics* metrics = src_tmp.Font.LoadGlyph(src_glyph.Codepoint);
-            IM_ASSERT(metrics != NULL);
             if (metrics == NULL)
                 continue;
 
@@ -559,6 +559,8 @@ bool ImFontAtlasBuildWithFreeType(FT_Library ft_library, ImFontAtlas* atlas, uns
             ImFontBuildSrcGlyphFT& src_glyph = src_tmp.GlyphsList[glyph_i];
             stbrp_rect& pack_rect = src_tmp.Rects[glyph_i];
             IM_ASSERT(pack_rect.was_packed);
+            if (pack_rect.w == 0 && pack_rect.h == 0)
+                continue;
 
             GlyphInfo& info = src_glyph.Info;
             IM_ASSERT(info.Width + padding <= pack_rect.w);
