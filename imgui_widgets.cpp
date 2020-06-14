@@ -5778,7 +5778,7 @@ bool ImGui::Selectable(const char* label, bool selected, ImGuiSelectableFlags fl
         PushStyleColor(ImGuiCol_Text, g.Style.Colors[ImGuiCol_TextDisabled]);
     else
         ImGui::PushStyleColor(ImGuiCol_Text, g.Style.Colors[(held && hovered) ? ImGuiCol_TextActive : hovered ? ImGuiCol_TextHovered : ImGuiCol_Text]);
-    RenderTextClipped(bb_inner.Min, bb_inner.Max, label, NULL, &label_size, style.SelectableTextAlign, &bb);
+    RenderTextClipped(text_min, text_max, label, NULL, &label_size, style.SelectableTextAlign, &bb_enlarged);
     ImGui::PopStyleColor();
 
     // Automatically close popups
