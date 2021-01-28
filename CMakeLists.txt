@@ -11,6 +11,7 @@ set(SOURCES
     "imgui_demo.cpp"
     "imgui_draw.cpp"
     "imgui_widgets.cpp"
+    "imgui_tables.cpp"
     "imgui_internal.h"
     "imgui.cpp"
     "imgui.h"
