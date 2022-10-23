@@ -35,7 +35,5 @@ target_include_directories(${PROJECT_NAME}
         "${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
-if (EASE_PLATFORM_IS_APPLE)
-    EASE_configure_library_Apple(${PROJECT_NAME} "")
-endif()
+EASE_configure_library(${PROJECT_NAME} "")
 
