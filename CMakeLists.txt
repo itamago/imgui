@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-set(PROJECT_NAME "imgui")
+set(PROJECT_NAME "ImGui")
 
 project(${PROJECT_NAME} CXX)
 
