@@ -18,8 +18,8 @@ set(SOURCES
     "imstb_rectpack.h"
     "imstb_textedit.h"
     "imstb_truetype.h"
-    "misc/freetype/imgui_freetype.cpp"
-    "misc/freetype/imgui_freetype.h"
+    # "misc/freetype/imgui_freetype.cpp"
+    # "misc/freetype/imgui_freetype.h"
 )
 
 add_library(${PROJECT_NAME} STATIC
