@@ -45,3 +45,16 @@ IMGUI_IMPL_API void     ImGui_ImplGlfw_ScrollCallback(GLFWwindow* window, double
 IMGUI_IMPL_API void     ImGui_ImplGlfw_KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 IMGUI_IMPL_API void     ImGui_ImplGlfw_CharCallback(GLFWwindow* window, unsigned int c);
 IMGUI_IMPL_API void     ImGui_ImplGlfw_MonitorCallback(GLFWmonitor* monitor, int event);
+
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Helper structure we store in the void* RenderUserData field of each ImGuiViewport to easily retrieve our backend data.
+struct ImGui_ImplGlfw_ViewportData
+{
+    GLFWwindow* Window;
+    bool        WindowOwned;
+    int         IgnoreWindowPosEventFrame;
+    int         IgnoreWindowSizeEventFrame;
+
+    ImGui_ImplGlfw_ViewportData()  { Window = nullptr; WindowOwned = false; IgnoreWindowSizeEventFrame = IgnoreWindowPosEventFrame = -1; }
+    ~ImGui_ImplGlfw_ViewportData() { IM_ASSERT(Window == nullptr); }
+};
