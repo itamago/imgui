@@ -123,13 +123,7 @@ namespace ImGui
 }
 */
 
-namespace ease {
-namespace gpu {
-    class Resource;
-}
-}
-
-#define ImTextureID  ease::gpu::Resource* 
+//#define ImTextureID  void* 
 
 
 // We need a structure of 24 bytes length in order to match 'VertexImGui' size.
