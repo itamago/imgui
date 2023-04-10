@@ -2907,7 +2907,7 @@ void ImGui::TableHeadersRow()
 // Emit a column header (text + optional sort order)
 // We cpu-clip text here so that all columns headers can be merged into a same draw call.
 // Note that because of how we cpu-clip and display sorting indicators, you _cannot_ use SameLine() after a TableHeader()
-void ImGui::TableHeader(const char* label)
+void ImGui::TableHeader(const char* label, bool draw)
 {
     ImGuiContext& g = *GImGui;
     ImGuiWindow* window = g.CurrentWindow;
@@ -3010,7 +3010,7 @@ void ImGui::TableHeader(const char* label)
     const float ellipsis_max = cell_r.Max.x - w_arrow - w_sort_text;
     if ((table->Flags & ImGuiTableFlags_Sortable) && !(column->Flags & ImGuiTableColumnFlags_NoSort))
     {
-        if (column->SortOrder != -1)
+        if (column->SortOrder != -1 && draw)
         {
             float x = ImMax(cell_r.Min.x, cell_r.Max.x - w_arrow - w_sort_text);
             float y = label_pos.y;
@@ -3038,7 +3038,7 @@ void ImGui::TableHeader(const char* label)
     RenderTextEllipsis(window->DrawList, label_pos, ImVec2(ellipsis_max, label_pos.y + label_height + g.Style.FramePadding.y), ellipsis_max, ellipsis_max, label, label_end, &label_size);
 
     const bool text_clipped = label_size.x > (ellipsis_max - label_pos.x);
-    if (text_clipped && hovered && g.ActiveId == 0 && IsItemHovered(ImGuiHoveredFlags_DelayNormal))
+    if (draw && text_clipped && hovered && g.ActiveId == 0 && IsItemHovered(ImGuiHoveredFlags_DelayNormal))
         SetTooltip("%.*s", (int)(label_end - label), label);
 
     // We don't use BeginPopupContextItem() because we want the popup to stay up even after the column is hidden
