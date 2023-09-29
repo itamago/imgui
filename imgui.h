@@ -3351,7 +3351,10 @@ struct ImGuiPlatformMonitor
     float   DpiScale;               // 1.0f = 96 DPI
     void*   PlatformHandle;         // Backend dependant data (e.g. HMONITOR, GLFWmonitor*, SDL Display Index, NSScreen*)
     bool    IsEnabledHDR = false;   // PDA : whether HDR is enabled on this monitor
-    ImGuiPlatformMonitor()          { MainPos = MainSize = WorkPos = WorkSize = ImVec2(0, 0); DpiScale = 1.0f; PlatformHandle = NULL; IsEnabledHDR = false; }
+    float   SDRWhiteLevelNits = 200.0f;   // PDA: Used only when HDR is enabled
+    inline float GetScaleFactorHDR()  const { return IsEnabledHDR ? (SDRWhiteLevelNits / 80.0f) : 1.0f; }
+
+    ImGuiPlatformMonitor()          { MainPos = MainSize = WorkPos = WorkSize = ImVec2(0, 0); DpiScale = 1.0f; PlatformHandle = NULL; IsEnabledHDR = false; SDRWhiteLevelNits = 200.0f; }
 };
 
 // (Optional) Support for IME (Input Method Editor) via the io.SetPlatformImeDataFn() function.
