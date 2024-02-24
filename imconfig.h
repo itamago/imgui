@@ -90,52 +90,26 @@
 
 //---- Define constructor and implicit cast operators to convert back<>forth between your math types and ImVec2/ImVec4.
 // This will be inlined as part of ImVec2 and ImVec4 class declarations.
-#ifdef EASE_CORE_DEFINED
+#define IM_VEC2_CLASS_EXTRA                                                     \
+        ImVec2(const ease::Vec2 & f) { x = f.x; y = f.y; }                      \
+        operator ease::Vec2() const { return ease::Vec2(x,y); }
 
-    #define IM_VEC2_CLASS_EXTRA                                                     \
-            ImVec2(const ease::Vec2 & f) { x = f.x; y = f.y; }                      \
-            operator ease::Vec2() const { return ease::Vec2(x,y); }
+#define IM_VEC4_CLASS_EXTRA                                                     \
+        ImVec4(const ease::Vec4 & f) { x = f.x; y = f.y; z = f.z; w = f.w; }    \
+        ease::Vec4  ToVec4() const { return ease::Vec4(x,y,z,w); }              \
+        operator ease::Vec4() const { return ease::Vec4(x,y,z,w); }
 
-    #define IM_VEC4_CLASS_EXTRA                                                     \
-            ImVec4(const ease::Vec4 & f) { x = f.x; y = f.y; z = f.z; w = f.w; }    \
-            ease::Vec4  ToVec4() const { return ease::Vec4(x,y,z,w); }              \
-            operator ease::Vec4() const { return ease::Vec4(x,y,z,w); }
-
-    #define IM_COLOR_CLASS_EXTRA                                                    \
-            ImColor(const ease::Vec4  & f) { Value.x = f.x; Value.y = f.y; Value.z = f.z; Value.w = f.w; }    \
-            ImColor(const ease::Vec4i & f) : ImColor(f.x,f.y,f.z,f.w) {}                            \
-            ease::Vec4  ToVec4() const { return ease::Vec4(Value.x,Value.y,Value.z,Value.w); }      \
-            operator ease::Vec4() const { return ease::Vec4(Value.x,Value.y,Value.z,Value.w); }
-
-#endif
+#define IM_COLOR_CLASS_EXTRA                                                    \
+        ImColor(const ease::Vec4  & f) { Value.x = f.x; Value.y = f.y; Value.z = f.z; Value.w = f.w; }    \
+        ImColor(const ease::Vec4i & f) : ImColor(f.x,f.y,f.z,f.w) {}                            \
+        ease::Vec4  ToVec4() const { return ease::Vec4(Value.x,Value.y,Value.z,Value.w); }      \
+        operator ease::Vec4() const { return ease::Vec4(Value.x,Value.y,Value.z,Value.w); }
 
 //---- Use 32-bit vertex indices (instead of default: 16-bit) to allow meshes with more than 64K vertices
 #define ImDrawIdx unsigned int
 
-//---- Override ImDrawCallback signature (will need to modify renderer back-ends accordingly)
-//struct ImDrawList;
-//struct ImDrawCmd;
-//typedef void (*MyImDrawCallback)(const ImDrawList* draw_list, const ImDrawCmd* cmd, void* my_renderer_user_data);
-//#define ImDrawCallback MyImDrawCallback
-
-//---- Debug Tools: Macro to break in Debugger (we provide a default implementation of this in the codebase)
-// (use 'Metrics->Tools->Item Picker' to pick widgets with the mouse and break into them for easy debugging.)
-//#define IM_DEBUG_BREAK  IM_ASSERT(0)
-//#define IM_DEBUG_BREAK  __debugbreak()
-
-//---- Debug Tools: Enable slower asserts
-//#define IMGUI_DEBUG_PARANOID
-
-//---- Tip: You can add extra functions within the ImGui:: namespace from anywhere (e.g. your own sources/header files)
-/*
-namespace ImGui
-{
-    void MyFunction(const char* name, MyMatrix44* mtx);
-}
-*/
-
-//#define ImTextureID  void* 
-
+// Use EaseCore texture's ID
+#define ImTextureID  ease::gpu::HeapOffset
 
 // We need a structure of 24 bytes length in order to match 'VertexImGui' size.
 #define IMGUI_OVERRIDE_DRAWVERT_STRUCT_LAYOUT  \
