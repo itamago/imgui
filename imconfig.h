@@ -98,6 +98,7 @@
 #define IM_VEC2_CLASS_EXTRA                                                     \
         ImVec2(const ease::Vec2 & f) { x = f.x; y = f.y; }                      \
         ImVec2(const ease::Vec2i & v) { x = (float)v.x; y = (float)v.y; }       \
+        ease::Vec2i ToVec2i() const { return ease::Vec2i(int(x),int(y)); }      \
         operator ease::Vec2() const { return ease::Vec2(x,y); }
 
 #define IM_VEC4_CLASS_EXTRA                                                     \
