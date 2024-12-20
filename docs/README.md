@@ -110,7 +110,7 @@ Reading the changelogs is a good way to keep up to date with the things Dear ImG
 Calling the `ImGui::ShowDemoWindow()` function will create a demo window showcasing a variety of features and examples. The code is always available for reference in `imgui_demo.cpp`. [Here's how the demo looks](https://raw.githubusercontent.com/wiki/ocornut/imgui/web/v167/v167-misc.png).
 
 You should be able to build the examples from sources. If you don't, let us know! If you want to have a quick look at some Dear ImGui features, you can download Windows binaries of the demo app here:
-- [imgui-demo-binaries-20240105.zip](https://www.dearimgui.com/binaries/imgui-demo-binaries-20240105.zip) (Windows, 1.90.1 WIP, built 2024/01/05, master) or [older binaries](https://www.dearimgui.com/binaries).
+- [imgui-demo-binaries-20241211.zip](https://www.dearimgui.com/binaries/imgui-demo-binaries-20241211.zip) (Windows, 1.91.6, built 2024/11/11, master) or [older binaries](https://www.dearimgui.com/binaries).
 
 The demo applications are not DPI aware so expect some blurriness on a 4K screen. For DPI awareness in your application, you can load/reload your font at a different scale and scale your style with `style.ScaleAllSizes()` (see [FAQ](https://www.dearimgui.com/faq)).
 
@@ -196,7 +196,7 @@ Ongoing Dear ImGui development is and has been financially supported by users an
 **THANK YOU to all past and present supporters for helping to keep this project alive and thriving!**
 
 Dear ImGui is using software and services provided free of charge for open source projects:
-- [PVS-Studio](https://www.viva64.com/en/b/0570/) for static analysis.
+- [PVS-Studio](https://pvs-studio.com/en/pvs-studio/?utm_source=website&utm_medium=github&utm_campaign=open_source) for static analysis (supports C/C++/C#/Java).
 - [GitHub actions](https://github.com/features/actions) for continuous integration systems.
 - [OpenCppCoverage](https://github.com/OpenCppCoverage/OpenCppCoverage) for code coverage analysis.
 
