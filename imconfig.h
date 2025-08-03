@@ -124,6 +124,13 @@
 // Use EaseCore texture's ID
 #define ImTextureID  ease::gpu::HeapOffset
 
+//---- Debug Tools: Enable highlight ID conflicts _before_ hovering items. When io.ConfigDebugHighlightIdConflicts is set.
+// (THIS WILL SLOW DOWN DEAR IMGUI. Only use occasionally and disable after use)
+//#define IMGUI_DEBUG_HIGHLIGHT_ALL_ID_CONFLICTS
+
+//---- Debug Tools: Enable slower asserts
+//#define IMGUI_DEBUG_PARANOID
+
 // We need a structure of 24 bytes length in order to match 'VertexImGui' size.
 #define IMGUI_OVERRIDE_DRAWVERT_STRUCT_LAYOUT  \
 	struct ImDrawVert		\
