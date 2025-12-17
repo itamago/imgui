@@ -123,7 +123,9 @@
 #define ImDrawIdx unsigned int
 
 // Use EaseCore texture's ID
-#define ImTextureID  ease::gpu::HeapOffset
+#define ImTextureID             ease::gpu::HeapOffset
+#define ImTextureID_Invalid     ease::gpu::HeapOffset::InvalidHeapOffsetSRV
+
 
 //---- Debug Tools: Enable highlight ID conflicts _before_ hovering items. When io.ConfigDebugHighlightIdConflicts is set.
 // (THIS WILL SLOW DOWN DEAR IMGUI. Only use occasionally and disable after use)
