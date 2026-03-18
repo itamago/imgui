@@ -9255,11 +9255,16 @@ bool ImGui::BeginMenuEx(const char* label, const char* icon, bool enabled)
         // Menu inside a horizontal menu bar
         // Selectable extend their highlight by half ItemSpacing in each direction.
         // For ChildMenu, the popup position will be overwritten by the call to FindBestWindowPosForPopup() in Begin()
+        // When MenuBarMinHeight is active, compute the full bar content height so selectables span the entire bar.
+        const float default_menu_item_height = label_size.y;
+        const float menu_bar_content_height = window->MenuBarHeight - window->DC.MenuBarOffset.y;
+        const float menu_item_height = ImMax(default_menu_item_height, menu_bar_content_height);
+        const float text_center_y_offset = ImMax(0.0f, (menu_item_height - label_size.y) * 0.5f);
         window->DC.CursorPos.x += IM_TRUNC(style.ItemSpacing.x * 0.5f);
         PushStyleVarX(ImGuiStyleVar_ItemSpacing, style.ItemSpacing.x * 2.0f);
         float w = label_size.x;
-        ImVec2 text_pos(window->DC.CursorPos.x + offsets->OffsetLabel, pos.y + window->DC.CurrLineTextBaseOffset);
-        pressed = Selectable("", menu_is_open, selectable_flags, ImVec2(w, label_size.y));
+        ImVec2 text_pos(window->DC.CursorPos.x + offsets->OffsetLabel, pos.y + window->DC.CurrLineTextBaseOffset + text_center_y_offset);
+        pressed = Selectable("", menu_is_open, selectable_flags, ImVec2(w, menu_item_height));
         LogSetNextTextDecoration("[", "]");
         RenderText(text_pos, label);
         PopStyleVar();
@@ -9464,11 +9469,17 @@ bool ImGui::MenuItemEx(const char* label, const char* icon, const char* shortcut
     {
         // Mimic the exact layout spacing of BeginMenu() to allow MenuItem() inside a menu bar, which is a little misleading but may be useful
         // Note that in this situation: we don't render the shortcut, we render a highlight instead of the selected tick mark.
+        // When MenuBarMinHeight is active, span the full bar height and center text vertically.
+        const float default_menu_item_height = label_size.y;
+        const float menu_bar_content_height = window->MenuBarHeight - window->DC.MenuBarOffset.y;
+        const float menu_item_height = ImMax(default_menu_item_height, menu_bar_content_height);
+        const float text_center_y_offset = ImMax(0.0f, (menu_item_height - label_size.y) * 0.5f);
+
         float w = label_size.x;
         window->DC.CursorPos.x += IM_TRUNC(style.ItemSpacing.x * 0.5f);
-        ImVec2 text_pos(window->DC.CursorPos.x + offsets->OffsetLabel, window->DC.CursorPos.y + window->DC.CurrLineTextBaseOffset);
+        ImVec2 text_pos(window->DC.CursorPos.x + offsets->OffsetLabel, window->DC.CursorPos.y + window->DC.CurrLineTextBaseOffset + text_center_y_offset);
         PushStyleVarX(ImGuiStyleVar_ItemSpacing, style.ItemSpacing.x * 2.0f);
-        pressed = Selectable("", selected, selectable_flags, ImVec2(w, 0.0f));
+        pressed = Selectable("", selected, selectable_flags, ImVec2(w, menu_item_height));
         PopStyleVar();
         if (g.LastItemData.StatusFlags & ImGuiItemStatusFlags_Visible)
             RenderText(text_pos, label);
