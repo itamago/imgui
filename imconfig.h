@@ -104,14 +104,16 @@
 //---- Define constructor and implicit cast operators to convert back<>forth between your math types and ImVec2/ImVec4.
 // This will be inlined as part of ImVec2 and ImVec4 class declarations.
 #define IM_VEC2_CLASS_EXTRA                                                     \
-        ImVec2(const ease::Vec2 & f) { x = f.x; y = f.y; }                      \
+        ImVec2(const ease::Vec2  & f) { x = f.x; y = f.y; }                     \
         ImVec2(const ease::Vec2i & v) { x = (float)v.x; y = (float)v.y; }       \
         ease::Vec2i ToVec2i() const { return ease::Vec2i(int(x),int(y)); }      \
-        operator ease::Vec2() const { return ease::Vec2(x,y); }
+        operator ease::Vec2() const { return ease::Vec2(x,y);  }                \
+        inline float Length() const { return sqrtf(x*x + y*y); }                \
+        inline ImVec2 NormalizeOr(const ImVec2 & fallback)  const { float len = Length();  return (len <= 1e-5f) ? fallback : ImVec2(x/len, y/len); }
 
 #define IM_VEC4_CLASS_EXTRA                                                     \
         ImVec4(const ease::Vec4 & f) { x = f.x; y = f.y; z = f.z; w = f.w; }    \
-        ease::Vec4  ToVec4() const { return ease::Vec4(x,y,z,w); }              \
+        ease::Vec4  ToVec4()  const { return ease::Vec4(x,y,z,w); }             \
         operator ease::Vec4() const { return ease::Vec4(x,y,z,w); }
 
 #define IM_COLOR_CLASS_EXTRA                                                    \
