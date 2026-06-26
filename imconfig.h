@@ -54,7 +54,17 @@
 //#define IMGUI_DISABLE_SSE                                 // Disable use of SSE intrinsics even if available
 
 //---- Enable Test Engine / Automation features.
-//#define IMGUI_ENABLE_TEST_ENGINE                          // Enable imgui_test_engine hooks. Generally set automatically by include "imgui_te_config.h", see Test Engine for details.
+// Tied to EaseCore's CMake switch ENABLE_IMGUI_TEST_ENGINE (always defined as 0 or 1 by EaseCore/CMakeLists.txt,
+// propagated PUBLIC so every imgui translation unit - including consumers - sees the same value).
+// When OFF, imgui emits no ImGuiTestEngineHook_* calls, so nothing from the test-engine library needs to be linked.
+// When ON, the test-engine sources are compiled into EaseCore. This keeps the imgui hooks and the linked library in sync.
+#if defined(ENABLE_IMGUI_TEST_ENGINE) && (ENABLE_IMGUI_TEST_ENGINE)
+    #define IMGUI_ENABLE_TEST_ENGINE                             // Enable imgui_test_engine hooks.
+    #define IMGUI_TEST_ENGINE_ENABLE_IMPLOT                     0   // No ImPlot dependency
+    #define IMGUI_TEST_ENGINE_ENABLE_CAPTURE                    1   // Keep capture tool compiled (ScreenCaptureFunc left stubbed)
+    #define IMGUI_TEST_ENGINE_ENABLE_STD_FUNCTION               1   // ImGuiTest::TestFunc as std::function (required by capturing lambdas)
+    #define IMGUI_TEST_ENGINE_ENABLE_COROUTINE_STDTHREAD_IMPL   1   // Use the built-in std::thread coroutine backend
+#endif
 
 //---- Include imgui_user.h at the end of imgui.h as a convenience
 // May be convenient for some users to only explicitly include vanilla imgui.h and have extra stuff included.
