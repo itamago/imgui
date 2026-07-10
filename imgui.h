@@ -1,4 +1,4 @@
-// dear imgui, v1.92.8
+﻿// dear imgui, v1.92.8
 // (headers)
 
 // Help:
@@ -79,6 +79,7 @@ Index of this file:
 #include <float.h>                  // FLT_MIN, FLT_MAX
 #include <stdarg.h>                 // va_list, va_start, va_end
 #include <stddef.h>                 // ptrdiff_t, NULL
+#include <stdint.h>                 // uint32_t
 #include <string.h>                 // memset, memmove, memcpy, strlen, strchr, strcpy, strcmp
 
 // Define attributes of all API symbols declarations (e.g. for DLL under Windows)
@@ -4324,6 +4325,52 @@ struct ImGuiPlatformIO
     IMGUI_API void ClearRendererHandlers();    // Clear all Renderer_XXX fields. Typically called on Renderer Backend shutdown.
 };
 
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// EASE : ColorSpaceHDR exactly mirrors DXGI_COLOR_SPACE_TYPE.
+// EaseCore statically verifies these values before converting DXGI monitor information.
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+enum class ImGuiColorSpaceHDR : uint32_t
+{
+    RGB_FULL_G22_NONE_P709             = 0,
+    RGB_FULL_G10_NONE_P709             = 1,
+    RGB_STUDIO_G22_NONE_P709           = 2,
+    RGB_STUDIO_G22_NONE_P2020          = 3,
+    RESERVED                           = 4,
+    YCBCR_FULL_G22_NONE_P709_X601      = 5,
+    YCBCR_STUDIO_G22_LEFT_P601         = 6,
+    YCBCR_FULL_G22_LEFT_P601           = 7,
+    YCBCR_STUDIO_G22_LEFT_P709         = 8,
+    YCBCR_FULL_G22_LEFT_P709           = 9,
+    YCBCR_STUDIO_G22_LEFT_P2020        = 10,
+    YCBCR_FULL_G22_LEFT_P2020          = 11,
+    RGB_FULL_G2084_NONE_P2020          = 12,
+    YCBCR_STUDIO_G2084_LEFT_P2020      = 13,
+    RGB_STUDIO_G2084_NONE_P2020        = 14,
+    YCBCR_STUDIO_G22_TOPLEFT_P2020     = 15,
+    YCBCR_STUDIO_G2084_TOPLEFT_P2020   = 16,
+    RGB_FULL_G22_NONE_P2020            = 17,
+    YCBCR_STUDIO_GHLG_TOPLEFT_P2020    = 18,
+    YCBCR_FULL_GHLG_TOPLEFT_P2020      = 19,
+    RGB_STUDIO_G24_NONE_P709           = 20,
+    RGB_STUDIO_G24_NONE_P2020          = 21,
+    YCBCR_STUDIO_G24_LEFT_P709         = 22,
+    YCBCR_STUDIO_G24_LEFT_P2020        = 23,
+    YCBCR_STUDIO_G24_TOPLEFT_P2020     = 24,
+    CUSTOM                             = 0xFFFFFFFF
+};
+
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// EASE : static HDR capabilities reported by DXGI for one monitor.
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+struct ImGuiMonitorCapabilitiesHDR
+{
+    bool                Valid                   = false;
+    float               MinLuminance            = -1.0f;    // Minimum luminance in nits.
+    float               MaxLuminance            = -1.0f;    // Peak luminance in nits.
+    float               MaxFullFrameLuminance   = -1.0f;    // Full-frame peak luminance in nits.
+    ImGuiColorSpaceHDR  ColorSpace              = ImGuiColorSpaceHDR::RESERVED;
+};
+
 // (Optional) This is required when enabling multi-viewport. Represent the bounds of each connected monitor/display and their DPI.
 // We use this information for multiple DPI support + clamping the position of popups and tooltips so they don't straddle multiple monitors.
 struct ImGuiPlatformMonitor
@@ -4332,9 +4379,10 @@ struct ImGuiPlatformMonitor
     ImVec2  WorkPos, WorkSize;      // Coordinates without task bars / side bars / menu bars. Used to avoid positioning popups/tooltips inside this region. If you don't have this info, please copy the value for MainPos/MainSize.
     float   DpiScale;               // 1.0f = 96 DPI
     void*   PlatformHandle;         // Backend dependant data (e.g. HMONITOR, GLFWmonitor*, SDL Display Index, NSScreen*)
-    bool    IsEnabledHDR = false;   // PDA : whether HDR is enabled on this monitor
-    float   SDRWhiteLevelNits = 200.0f;   // PDA: Used only when HDR is enabled
-    inline float GetScaleFactorHDR()  const { return IsEnabledHDR ? (SDRWhiteLevelNits / 80.0f) : 1.0f; }
+    // From EASE : HDR presentation state and monitor capabilities.
+    bool                        IsEnabledHDR        = false;        // Whether Windows exposes this monitor in HDR10 mode.
+    float                       SDRWhiteLevelNits   = 200.0f;       // Windows SDR-white level in nits, with a 200-nit fallback.
+    ImGuiMonitorCapabilitiesHDR capabilitiesHDR     = {};           // Static DXGI luminance and color-space information.
 
     ImGuiPlatformMonitor()          { MainPos = MainSize = WorkPos = WorkSize = ImVec2(0, 0); DpiScale = 1.0f; PlatformHandle = NULL; IsEnabledHDR = false; SDRWhiteLevelNits = 200.0f; }
 };
