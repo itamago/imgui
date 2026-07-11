@@ -4362,7 +4362,7 @@ enum class ImGuiColorSpaceHDR : uint32_t
 //--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // EASE : static HDR capabilities reported by DXGI for one monitor.
 //--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-struct ImGuiMonitorCapabilitiesHDR
+struct ImGuiMonitorInfoHDR
 {
     bool                Valid                   = false;
     float               MinLuminance            = -1.0f;    // Minimum luminance in nits.
@@ -4380,9 +4380,9 @@ struct ImGuiPlatformMonitor
     float   DpiScale;               // 1.0f = 96 DPI
     void*   PlatformHandle;         // Backend dependant data (e.g. HMONITOR, GLFWmonitor*, SDL Display Index, NSScreen*)
     // From EASE : HDR presentation state and monitor capabilities.
-    bool                        IsEnabledHDR        = false;        // Whether Windows exposes this monitor in HDR10 mode.
-    float                       SDRWhiteLevelNits   = 200.0f;       // Windows SDR-white level in nits, with a 200-nit fallback.
-    ImGuiMonitorCapabilitiesHDR capabilitiesHDR     = {};           // Static DXGI luminance and color-space information.
+    bool                    IsEnabledHDR        = false;        // Whether Windows exposes this monitor in HDR10 mode.
+    float                   SDRWhiteLevelNits   = 200.0f;       // Windows SDR-white level in nits, with a 200-nit fallback.
+    ImGuiMonitorInfoHDR     capabilitiesHDR     = {};           // Static DXGI luminance and color-space information.
 
     ImGuiPlatformMonitor()          { MainPos = MainSize = WorkPos = WorkSize = ImVec2(0, 0); DpiScale = 1.0f; PlatformHandle = NULL; IsEnabledHDR = false; SDRWhiteLevelNits = 200.0f; }
 };
