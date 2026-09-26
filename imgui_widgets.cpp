@@ -9185,6 +9185,8 @@ bool ImGui::BeginMenuBar()
     window->DC.NavLayerCurrent = ImGuiNavLayer_Menu;
     window->DC.MenuBarAppending = true;
     AlignTextToFramePadding();
+    // When MenuBarMinHeight is active, the line spans the whole bar content height (as AlignTextToFramePadding() does at the default height), so vertical separators cover the entire bar.
+    window->DC.CurrLineSize.y = ImMax(window->DC.CurrLineSize.y, window->MenuBarHeight - window->DC.MenuBarOffset.y);
     return true;
 }
 
@@ -9414,8 +9416,10 @@ bool ImGui::BeginMenuEx(const char* label, const char* icon, bool enabled)
         // Selectable extend their highlight by half ItemSpacing in each direction.
         // For ChildMenu, the popup position will be overwritten by the call to FindBestWindowPosForPopup() in Begin()
         // When MenuBarMinHeight is active, compute the full bar content height so selectables span the entire bar.
+        // The selectable and its label start CurrLineTextBaseOffset (FramePadding.y) below the line: remove that offset on both sides so the label is centered in the bar.
+        // With MenuBarMinHeight == 0 the item keeps the upstream height (label_size.y) and the upstream label position.
         const float default_menu_item_height = label_size.y;
-        const float menu_bar_content_height = window->MenuBarHeight - window->DC.MenuBarOffset.y;
+        const float menu_bar_content_height = window->MenuBarHeight - window->DC.MenuBarOffset.y - window->DC.CurrLineTextBaseOffset * 2.0f;
         const float menu_item_height = ImMax(default_menu_item_height, menu_bar_content_height);
         const float text_center_y_offset = ImMax(0.0f, (menu_item_height - label_size.y) * 0.5f);
         window->DC.CursorPos.x += IM_TRUNC(style.ItemSpacing.x * 0.5f);
@@ -9640,8 +9644,9 @@ bool ImGui::MenuItemEx(const char* label, const char* icon, const char* shortcut
         // Mimic the exact layout spacing of BeginMenu() to allow MenuItem() inside a menu bar, which is a little misleading but may be useful
         // Note that in this situation: we don't render the shortcut, we render a highlight instead of the selected tick mark.
         // When MenuBarMinHeight is active, span the full bar height and center text vertically.
+        // Same as BeginMenuEx(): remove CurrLineTextBaseOffset on both sides so the label is centered in the bar.
         const float default_menu_item_height = label_size.y;
-        const float menu_bar_content_height = window->MenuBarHeight - window->DC.MenuBarOffset.y;
+        const float menu_bar_content_height = window->MenuBarHeight - window->DC.MenuBarOffset.y - window->DC.CurrLineTextBaseOffset * 2.0f;
         const float menu_item_height = ImMax(default_menu_item_height, menu_bar_content_height);
         const float text_center_y_offset = ImMax(0.0f, (menu_item_height - label_size.y) * 0.5f);
 
